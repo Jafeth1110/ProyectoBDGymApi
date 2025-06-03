@@ -1,0 +1,42 @@
+# Archivos de entorno y configuración local
+.env
+.env.backup
+.env.production
+.env.example
+.phpactor.json
+.phpunit.result.cache
+
+# Directorios de dependencias
+/vendor
+/node_modules
+
+# Logs y archivos temporales
+*.log
+npm-debug.log
+yarn-error.log
+.phpunit.cache
+storage/*.key
+storage/pail
+
+# Directorios de desarrollo y builds
+/public/build
+/public/hot
+/public/storage
+
+# Archivos de sistemas operativos
+.DS_Store
+Thumbs.db
+
+# Configuraciones de IDEs y editores
+/.fleet
+/.idea
+/.nova
+/.vscode
+/.zed
+
+# Configuraciones locales de Homestead
+Homestead.json
+Homestead.yaml
+
+# Auth (credenciales de servicios externos)
+auth.json
