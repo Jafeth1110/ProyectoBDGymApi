@@ -31,7 +31,8 @@ class UserController extends Controller
                 'cedula' => 'required|numeric|digits_between:8,12',
                 'email' => 'required|email|unique:users',
                 'password' => 'required|alpha_num|min:6',
-                'rol' => 'required|alpha'
+                'rol' => 'required|in:admin,cliente,entrenador'
+
             ];
 
             $isValid = \validator($data, $rules);
@@ -129,7 +130,7 @@ class UserController extends Controller
                     'cedula' => 'numeric|digits_between:8,12',
                     'email' => 'email',
                     'password' => 'alpha_num|min:6',
-                    'rol' => 'alpha'
+                    'rol' => 'in:admin,cliente,entrenador'
                 ];
 
                 $isValid = \validator($data, $rules);

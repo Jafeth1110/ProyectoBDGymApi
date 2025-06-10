@@ -9,7 +9,7 @@ class TelefonoUsuarioController extends Controller
 {
     public function index()
     {
-        $telefonos = TelefonoUsuario::all();
+        $telefonos = TelefonoUsuario::with('usuario')->get();
 
         return response()->json([
             'status' => 200,
