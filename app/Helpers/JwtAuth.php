@@ -16,29 +16,36 @@ class JwtAuth{
     }
 
     public function getToken($email, $password) {
-        $hashedPassword = hash('sha256', $password);
-        $user = User::where('email', $email)->first();
-    
-        if ($user && hash_equals($user->password, $hashedPassword)) {
-            $token = [
-                'iss' => $user->id,
-                'email' => $user->email,
-                'nombre' => $user->nombre,
-                'rol' => $user->rol,
-                'iat' => time(),
-                'exp' => time() + 2000
-            ];
-    
-            $data = JWT::encode($token, $this->key, 'HS256');
-        } else {
-            $data = [
-                'status' => 401,
-                'message' => 'Datos de autenticación incorrectos'
+    $hashedPassword = hash('sha256', $password);
+    $user = User::where('email', $email)->first();
+
+    if ($user && hash_equals($user->password, $hashedPassword)) {
+        if(empty($user->idUsuario)) {  // Cambiado de $user->id a $user->idUsuario
+            return [
+                'status' => 500,
+                'message' => 'Error: El usuario no tiene ID válido'
             ];
         }
-    
-        return $data;
+
+        $token = [
+            'iss' => $user->idUsuario,  // Usa idUsuario en lugar de id
+            'email' => $user->email,
+            'nombre' => $user->nombre,
+            'rol' => $user->rol,
+            'iat' => time(),
+            'exp' => time() + 2000
+        ];
+
+        $data = JWT::encode($token, $this->key, 'HS256');
+    } else {
+        $data = [
+            'status' => 401,
+            'message' => 'Datos de autenticación incorrectos'
+        ];
     }
+
+    return $data;
+}
     
 
     //OBTIENE LA VERIFICACION DEL TOKEN Y SE OBTIENEN LOS DATOS DEL TOKEN CIFRADO
@@ -52,7 +59,7 @@ class JwtAuth{
             }catch(ExpiredException $ex){
                 $authFlag=false;
             }
-            if(!empty($decoded)&&is_object($decoded)&&isset($decoded->iss)){
+            if(!empty($decoded)&&is_object($decoded)&&isset($decoded->email)){
                 $authFlag=true;
             }
             if($getId && $authFlag){

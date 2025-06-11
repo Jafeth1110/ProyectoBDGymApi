@@ -175,30 +175,62 @@ class UserController extends Controller
     }
 
     public function login(Request $request) {
-        $data_input = $request->input('data', null);
-        $data = array_map('trim', $data_input);
-
-        $rules = [
-            'email' => 'required',
-            'password' => 'required'
-        ];
-
-        $isValid = \validator($data, $rules);
-
-        if (!$isValid->fails()) {
-            $jwt = new JwtAuth();
-            $response = $jwt->getToken($data['email'], $data['password']);
-            return response()->json($response);
-        } else {
-            $response = [
-                'status' => 406,
-                'message' => 'Error en la validación de los datos >:(',
-                'errors' => $isValid->errors()
-            ];
-        }
-
-        return response()->json($response, $response['status'] ?? 406);
+    // Obtener y limpiar los datos de entrada
+    $data_input = $request->input('data', null);
+    
+    // Verificar si los datos vienen en el formato esperado
+    if (empty($data_input) || !is_array($data_input)) {
+        return response()->json([
+            'status' => 400,
+            'message' => 'Formato de datos incorrecto. Se espera un objeto con email y password.'
+        ], 400);
     }
+    
+    $data = array_map('trim', $data_input);
+
+    // Reglas de validación
+    $rules = [
+        'email' => 'required|email',  // Añadí validación de formato email
+        'password' => 'required|min:6' // Añadí longitud mínima para seguridad
+    ];
+
+    $validator = \Validator::make($data, $rules);
+
+    if ($validator->fails()) {
+        return response()->json([
+            'status' => 422, // 422 Unprocessable Entity es más apropiado para errores de validación
+            'message' => 'Error en la validación de los datos',
+            'errors' => $validator->errors()
+        ], 422);
+    }
+
+    try {
+        $jwt = new JwtAuth();
+        $response = $jwt->getToken($data['email'], $data['password']);
+        
+        // Mejorar la respuesta del token
+        if (is_array($response) && isset($response['status'])) {
+            // Error en las credenciales
+            return response()->json($response, $response['status']);
+        } else {
+            // Credenciales correctas
+            return response()->json([
+                'status' => 200,
+                'message' => 'Login exitoso',
+                'token' => $response,
+                'token_type' => 'bearer',
+                'expires_in' => 2000 // Deberías usar el mismo valor que en JwtAuth
+            ]);
+        }
+    } catch (\Exception $e) {
+        // Manejo de errores inesperados
+        return response()->json([
+            'status' => 500,
+            'message' => 'Error interno del servidor al generar el token',
+            'error' => $e->getMessage()
+        ], 500);
+    }
+}
 
     public function getIdentity(Request $request) {
         $jwt = new JwtAuth();

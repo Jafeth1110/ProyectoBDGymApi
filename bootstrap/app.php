@@ -12,7 +12,10 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
-        //
+        //Middleware para todas las rutas de la API
+        $middleware->alias([
+        'auth.jwt' => \App\Http\Middleware\ApiAuthMiddleware::class,
+    ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //
