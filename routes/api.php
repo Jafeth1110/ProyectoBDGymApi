@@ -6,6 +6,7 @@ use App\Http\Controllers\TelefonoUsuarioController;
 use App\Http\Controllers\EquipoController;
 use App\Http\Controllers\MantenimientoController;
 use App\Http\Controllers\DetalleMantenimientoController;
+use App\Http\Controllers\AdminController;
 
 Route::prefix('v1')->group(function () {
     
@@ -23,6 +24,9 @@ Route::prefix('v1')->group(function () {
         Route::get('/user/getidentity', [UserController::class, 'getIdentity']);
         Route::put('/user/updateUser/{email}', [UserController::class, 'update']);
         Route::delete('/user/destroyUser/{email}', [UserController::class, 'destroy']);
+
+        /* RUTAS ADMIN */
+        Route::get('/admin', [AdminController::class, 'index']);
 
         /* RUTAS TELEFONO USUARIO */
         Route::get('/telefonousuario', [TelefonoUsuarioController::class, 'index']);

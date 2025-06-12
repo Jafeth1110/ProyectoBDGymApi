@@ -27,7 +27,8 @@ class MantenimientoController extends Controller
 
             $rules = [
                 'descripcion' => 'required|string|max:100|unique:mantenimiento,descripcion',
-                'costo' => 'required|integer'
+                'costo' => 'required|integer',
+                'idAdmin' => 'required|exists:admin,idAdmin'
             ];
 
             $isValid = \validator($data, $rules);
@@ -108,7 +109,8 @@ class MantenimientoController extends Controller
 
                 $rules = [
                     'descripcion' => 'string|max:100|unique:mantenimiento,descripcion,' . $id . ',idMantenimiento',
-                    'costo' => 'integer'
+                    'costo' => 'integer',
+                    'idAdmin' => 'exists:admin,idAdmin'
                 ];
 
                 $isValid = \validator($data, $rules);
@@ -116,7 +118,8 @@ class MantenimientoController extends Controller
                 if (!$isValid->fails()) {
                     if (isset($data['descripcion'])) $mantenimiento->descripcion = $data['descripcion'];
                     if (isset($data['costo'])) $mantenimiento->costo = $data['costo'];
-
+                    if (isset($data['idAdmin'])) $mantenimiento->idAdmin = $data['idAdmin'];
+                    
                     $mantenimiento->save();
 
                     $response = [

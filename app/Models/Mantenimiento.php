@@ -19,9 +19,14 @@ class Mantenimiento extends Model
     protected $fillable = [
         'descripcion',
         'costo',
+        'idAdmin',
     ];
 
     protected $casts = [
         'costo' => 'integer',
     ];
+    public function admin()
+    {
+        return $this->belongsTo(Admin::class, 'idAdmin');
+    }
 }
