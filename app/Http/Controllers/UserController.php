@@ -174,77 +174,111 @@ class UserController extends Controller
         return response()->json($response, $response['status']);
     }
 
-    public function login(Request $request) {
-    // Obtener y limpiar los datos de entrada
-    $data_input = $request->input('data', null);
-    
-    // Verificar si los datos vienen en el formato esperado
-    if (empty($data_input) || !is_array($data_input)) {
-        return response()->json([
-            'status' => 400,
-            'message' => 'Formato de datos incorrecto. Se espera un objeto con email y password.'
-        ], 400);
-    }
-    
-    $data = array_map('trim', $data_input);
+            public function login(Request $request) {
+            // Obtener y limpiar los datos de entrada
+            $data_input = $request->input('data', null);
+            
+            // Verificar si los datos vienen en el formato esperado
+            if (empty($data_input) || !is_array($data_input)) {
+                return response()->json([
+                    'status' => 400,
+                    'message' => 'Formato de datos incorrecto. Se espera un objeto con email y password.'
+                ], 400);
+            }
+            
+            $data = array_map('trim', $data_input);
 
-    // Reglas de validación
-    $rules = [
-        'email' => 'required|email',  // Añadí validación de formato email
-        'password' => 'required|min:6' // Añadí longitud mínima para seguridad
-    ];
+            // Reglas de validación
+            $rules = [
+                'email' => 'required|email',  // Añadí validación de formato email
+                'password' => 'required|min:6' // Añadí longitud mínima para seguridad
+            ];
 
-    $validator = \Validator::make($data, $rules);
+            $validator = \Validator::make($data, $rules);
 
-    if ($validator->fails()) {
-        return response()->json([
-            'status' => 422, // 422 Unprocessable Entity es más apropiado para errores de validación
-            'message' => 'Error en la validación de los datos',
-            'errors' => $validator->errors()
-        ], 422);
-    }
+            if ($validator->fails()) {
+                return response()->json([
+                    'status' => 422, // 422 Unprocessable Entity es más apropiado para errores de validación
+                    'message' => 'Error en la validación de los datos',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
 
-    try {
-        $jwt = new JwtAuth();
-        $response = $jwt->getToken($data['email'], $data['password']);
-        
-        // Mejorar la respuesta del token
-        if (is_array($response) && isset($response['status'])) {
-            // Error en las credenciales
-            return response()->json($response, $response['status']);
-        } else {
-            // Credenciales correctas
+            try {
+                $jwt = new JwtAuth();
+                $response = $jwt->getToken($data['email'], $data['password']);
+                
+                // Mejorar la respuesta del token
+                if (is_array($response) && isset($response['status'])) {
+                    // Error en las credenciales
+                    return response()->json($response, $response['status']);
+                } else {
+                    // Credenciales correctas
+                    return response()->json([
+                        'status' => 200,
+                        'message' => 'Login exitoso',
+                        'token' => $response,
+                        'token_type' => 'bearer',
+                        'expires_in' => 2000 // Deberías usar el mismo valor que en JwtAuth
+                    ]);
+                }
+            } catch (\Exception $e) {
+                // Manejo de errores inesperados
+                return response()->json([
+                    'status' => 500,
+                    'message' => 'Error interno del servidor al generar el token',
+                    'error' => $e->getMessage()
+                ], 500);
+            }
+        }
+
+        public function logout(Request $request) {
+            $token = $request->bearerToken(); // estándar
+
+            if (!$token) {
+                return response()->json([
+                    'status' => 400,
+                    'message' => 'Token no proporcionado'
+                ], 400);
+            }
+
+            $jwt = new JwtAuth();
+
+            if ($jwt->checkToken($token)) {
+                return response()->json([
+                    'status' => 200,
+                    'message' => 'Logout exitoso :) (elimina el token del lado del cliente)'
+                ]);
+            }
+
             return response()->json([
-                'status' => 200,
-                'message' => 'Login exitoso',
-                'token' => $response,
-                'token_type' => 'bearer',
-                'expires_in' => 2000 // Deberías usar el mismo valor que en JwtAuth
+                'status' => 401,
+                'message' => 'Token inválido'
             ]);
         }
-    } catch (\Exception $e) {
-        // Manejo de errores inesperados
-        return response()->json([
-            'status' => 500,
-            'message' => 'Error interno del servidor al generar el token',
-            'error' => $e->getMessage()
-        ], 500);
-    }
-}
 
-    public function getIdentity(Request $request) {
-        $jwt = new JwtAuth();
-        $token = $request->header('bearertoken');
 
-        if ($token) {
-            $response = $jwt->checkToken($token, true);
-        } else {
-            $response = [
-                'status' => 404,
-                'message' => 'Token (bearertoken) no encontrado >:('
-            ];
+
+    public function getIdentity(Request $request)
+        {
+            $token = $request->bearerToken(); // <-- cambio aquí
+
+            $jwt = new \App\Helpers\JwtAuth();
+            $checkToken = $jwt->checkToken($token, true);
+
+            if ($checkToken && is_object($checkToken)) {
+                return response()->json([
+                    'status' => 200,
+                    'message' => 'Identidad del usuario obtenida :)',
+                    'user' => $checkToken
+                ]);
+            } else {
+                return response()->json([
+                    'status' => 401,
+                    'message' => 'Token inválido o expirado >:('
+                ]);
+            }
         }
 
-        return response()->json($response);
-    }
+
 }

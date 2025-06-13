@@ -24,6 +24,9 @@ Route::prefix('v1')->group(function () {
         Route::get('/user/getidentity', [UserController::class, 'getIdentity']);
         Route::put('/user/updateUser/{email}', [UserController::class, 'update']);
         Route::delete('/user/destroyUser/{email}', [UserController::class, 'destroy']);
+        Route::post('/logout', [UserController::class, 'logout']);
+
+
 
         /* RUTAS ADMIN */
         Route::get('/admin', [AdminController::class, 'index']);
