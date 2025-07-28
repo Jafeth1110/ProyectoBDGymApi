@@ -2,60 +2,63 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Admin;
+use App\Models\Entrenador;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
-class AdminController extends Controller
+class EntrenadorController extends Controller
 {
     public function index(): JsonResponse
     {
-        $admins = Admin::with(['user', 'user.rol'])->get();
+        $entrenadores = Entrenador::with(['user', 'user.rol'])->get();
 
-        $result = $admins->map(function ($admin) {
+        $result = $entrenadores->map(function ($entrenador) {
             return [
-                'idAdmin'   => $admin->idAdmin,
-                'idUsuario' => $admin->user->idUsuario,
-                'nombre'    => $admin->user->nombre,
-                'apellido'  => $admin->user->apellido,
-                'email'     => $admin->user->email,
-                'cedula'    => $admin->user->cedula,
-                'rol'       => $admin->user->rol,  // Ya es una cadena gracias al accessor
+                'idEntrenador' => $entrenador->idEntrenador,
+                'idUsuario'    => $entrenador->user->idUsuario,
+                'nombre'       => $entrenador->user->nombre,
+                'apellido'     => $entrenador->user->apellido,
+                'email'        => $entrenador->user->email,
+                'cedula'       => $entrenador->user->cedula,
+                'rol'          => $entrenador->user->rol,  // Ya es una cadena gracias al accessor
+                'especialidad' => $entrenador->especialidad,
             ];
         });
 
         return response()->json([
             'status' => 200,
-            'message' => 'Lista de administradores',
+            'message' => 'Lista de entrenadores',
             'data' => $result
         ]);
     }
 
     public function show($id): JsonResponse
     {
-        $admin = Admin::with(['user', 'user.rol'])->find($id);
+        $entrenador = Entrenador::with(['user', 'user.rol', 'inscripcionesClase'])->find($id);
 
-        if (!$admin) {
+        if (!$entrenador) {
             return response()->json([
                 'status' => 404,
-                'message' => 'Administrador no encontrado'
+                'message' => 'Entrenador no encontrado'
             ], 404);
         }
 
         $result = [
-            'idAdmin'   => $admin->idAdmin,
-            'idUsuario' => $admin->user->idUsuario,
-            'nombre'    => $admin->user->nombre,
-            'apellido'  => $admin->user->apellido,
-            'email'     => $admin->user->email,
-            'cedula'    => $admin->user->cedula,
-            'rol'       => $admin->user->rol,
+            'idEntrenador'      => $entrenador->idEntrenador,
+            'idUsuario'         => $entrenador->user->idUsuario,
+            'nombre'            => $entrenador->user->nombre,
+            'apellido'          => $entrenador->user->apellido,
+            'email'             => $entrenador->user->email,
+            'cedula'            => $entrenador->user->cedula,
+            'rol'               => $entrenador->user->rol,  // Ya es una cadena gracias al accessor
+            'especialidad'      => $entrenador->especialidad,
+            'inscripcionesClase' => $entrenador->inscripcionesClase,
         ];
 
         return response()->json([
             'status' => 200,
-            'message' => 'Detalles del administrador',
+            'message' => 'Detalles del entrenador',
             'data' => $result
         ]);
     }
@@ -68,29 +71,31 @@ class AdminController extends Controller
             $data = is_array($data_input) ? array_map('trim', $data_input) : array_map('trim', json_decode($data_input, true));
 
             $rules = [
-                'idUsuario' => 'required|exists:users,idUsuario'
+                'idUsuario' => 'required|exists:users,idUsuario',
+                'especialidad' => 'required|string|max:45'
             ];
 
             $isValid = \validator($data, $rules);
 
             if (!$isValid->fails()) {
-                // Verificar que el usuario tenga rol de admin
+                // Verificar que el usuario tenga rol de entrenador
                 $user = User::find($data['idUsuario']);
-                if ($user->idRol !== 1) {
+                if ($user->idRol !== 3) {
                     return response()->json([
                         'status' => 400,
-                        'message' => 'El usuario debe tener rol de administrador'
+                        'message' => 'El usuario debe tener rol de entrenador'
                     ], 400);
                 }
 
-                $admin = new Admin();
-                $admin->idUsuario = $data['idUsuario'];
-                $admin->save();
+                $entrenador = new Entrenador();
+                $entrenador->idUsuario = $data['idUsuario'];
+                $entrenador->especialidad = $data['especialidad'];
+                $entrenador->save();
 
                 return response()->json([
                     'status' => 201,
-                    'message' => 'Administrador creado correctamente',
-                    'data' => $admin
+                    'message' => 'Entrenador creado correctamente',
+                    'data' => $entrenador
                 ]);
             } else {
                 return response()->json([
@@ -109,12 +114,12 @@ class AdminController extends Controller
 
     public function update(Request $request, $id): JsonResponse
     {
-        $admin = Admin::find($id);
+        $entrenador = Entrenador::find($id);
 
-        if (!$admin) {
+        if (!$entrenador) {
             return response()->json([
                 'status' => 404,
-                'message' => 'Administrador no encontrado'
+                'message' => 'Entrenador no encontrado'
             ], 404);
         }
 
@@ -123,32 +128,20 @@ class AdminController extends Controller
         if ($data_input) {
             $data = is_array($data_input) ? array_map('trim', $data_input) : array_map('trim', json_decode($data_input, true));
 
-            // No hay campos editables en la tabla admin actual
-            // Solo se puede cambiar el idUsuario si es necesario
             $rules = [
-                'idUsuario' => 'sometimes|exists:users,idUsuario'
+                'especialidad' => 'string|max:45'
             ];
 
             $isValid = \validator($data, $rules);
 
             if (!$isValid->fails()) {
-                if (isset($data['idUsuario'])) {
-                    // Verificar que el nuevo usuario tenga rol de admin
-                    $user = User::find($data['idUsuario']);
-                    if ($user->idRol !== 1) {
-                        return response()->json([
-                            'status' => 400,
-                            'message' => 'El usuario debe tener rol de administrador'
-                        ], 400);
-                    }
-                    $admin->idUsuario = $data['idUsuario'];
-                }
-                $admin->save();
+                if (isset($data['especialidad'])) $entrenador->especialidad = $data['especialidad'];
+                $entrenador->save();
 
                 return response()->json([
                     'status' => 200,
-                    'message' => 'Administrador actualizado correctamente',
-                    'data' => $admin
+                    'message' => 'Entrenador actualizado correctamente',
+                    'data' => $entrenador
                 ]);
             } else {
                 return response()->json([
@@ -167,20 +160,20 @@ class AdminController extends Controller
 
     public function destroy($id): JsonResponse
     {
-        $admin = Admin::find($id);
+        $entrenador = Entrenador::find($id);
 
-        if (!$admin) {
+        if (!$entrenador) {
             return response()->json([
                 'status' => 404,
-                'message' => 'Administrador no encontrado'
+                'message' => 'Entrenador no encontrado'
             ], 404);
         }
 
-        $admin->delete();
+        $entrenador->delete();
 
         return response()->json([
             'status' => 200,
-            'message' => 'Administrador eliminado correctamente'
+            'message' => 'Entrenador eliminado correctamente'
         ]);
     }
 }

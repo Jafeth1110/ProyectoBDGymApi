@@ -22,17 +22,17 @@ class User extends Authenticatable
     public $timestamps = false;
 
     protected $primaryKey = 'idUsuario';
-    public $incrementing = false; // si tu idUsuario no es numérico autoincremental
-    protected $keyType = 'string'; // si es una cadena (como parece ser)
+    public $incrementing = true; // Cambiado a true porque es auto-incremental
+    protected $keyType = 'int'; // Cambiado a int
 
+    protected $appends = ['rol']; // Esto asegura que 'rol' esté disponible automáticamente
 
     protected $fillable = [
-        'idUsuario',
         'nombre',
         'apellido',
         'cedula',
         'email',
-        'rol',
+        'idRol', // Cambiado de 'rol' a 'idRol'
         'password',
     ];
 
@@ -57,5 +57,62 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
            // 'password' => 'hashed',
         ];
+    }
+
+    // Relaciones
+    public function rol()
+    {
+        return $this->belongsTo(Rol::class, 'idRol');
+    }
+
+    public function admin()
+    {
+        return $this->hasOne(Admin::class, 'idUsuario');
+    }
+
+    public function cliente()
+    {
+        return $this->hasOne(Cliente::class, 'idUsuario');
+    }
+
+    public function entrenador()
+    {
+        return $this->hasOne(Entrenador::class, 'idUsuario');
+    }
+
+    public function telefonos()
+    {
+        return $this->hasMany(Telefono::class, 'idUsuario', 'idUsuario');
+    }
+
+    // Métodos útiles para mantener compatibilidad
+    public function getRolAttribute()
+    {
+        // Retornar rol basado en idRol sin cargar relaciones
+        switch ($this->idRol) {
+            case 1:
+                return 'admin';
+            case 2:
+                return 'cliente';
+            case 3:
+                return 'entrenador';
+            default:
+                return null;
+        }
+    }
+
+    public function isAdmin()
+    {
+        return $this->idRol === 1;
+    }
+
+    public function isCliente()
+    {
+        return $this->idRol === 2;
+    }
+
+    public function isEntrenador()
+    {
+        return $this->idRol === 3;
     }
 }

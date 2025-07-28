@@ -2,60 +2,64 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Admin;
+use App\Models\Cliente;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
-class AdminController extends Controller
+class ClienteController extends Controller
 {
     public function index(): JsonResponse
     {
-        $admins = Admin::with(['user', 'user.rol'])->get();
+        $clientes = Cliente::with(['user', 'user.rol'])->get();
 
-        $result = $admins->map(function ($admin) {
+        $result = $clientes->map(function ($cliente) {
             return [
-                'idAdmin'   => $admin->idAdmin,
-                'idUsuario' => $admin->user->idUsuario,
-                'nombre'    => $admin->user->nombre,
-                'apellido'  => $admin->user->apellido,
-                'email'     => $admin->user->email,
-                'cedula'    => $admin->user->cedula,
-                'rol'       => $admin->user->rol,  // Ya es una cadena gracias al accessor
+                'idCliente'     => $cliente->idCliente,
+                'idUsuario'     => $cliente->user->idUsuario,
+                'nombre'        => $cliente->user->nombre,
+                'apellido'      => $cliente->user->apellido,
+                'email'         => $cliente->user->email,
+                'cedula'        => $cliente->user->cedula,
+                'rol'           => $cliente->user->rol,  // Ya es una cadena gracias al accessor
+                'fechaRegistro' => $cliente->fechaRegistro,
             ];
         });
 
         return response()->json([
             'status' => 200,
-            'message' => 'Lista de administradores',
+            'message' => 'Lista de clientes',
             'data' => $result
         ]);
     }
 
     public function show($id): JsonResponse
     {
-        $admin = Admin::with(['user', 'user.rol'])->find($id);
+        $cliente = Cliente::with(['user', 'user.rol', 'asistencias', 'membresias'])->find($id);
 
-        if (!$admin) {
+        if (!$cliente) {
             return response()->json([
                 'status' => 404,
-                'message' => 'Administrador no encontrado'
+                'message' => 'Cliente no encontrado'
             ], 404);
         }
 
         $result = [
-            'idAdmin'   => $admin->idAdmin,
-            'idUsuario' => $admin->user->idUsuario,
-            'nombre'    => $admin->user->nombre,
-            'apellido'  => $admin->user->apellido,
-            'email'     => $admin->user->email,
-            'cedula'    => $admin->user->cedula,
-            'rol'       => $admin->user->rol,
+            'idCliente'     => $cliente->idCliente,
+            'idUsuario'     => $cliente->user->idUsuario,
+            'nombre'        => $cliente->user->nombre,
+            'apellido'      => $cliente->user->apellido,
+            'email'         => $cliente->user->email,
+            'cedula'        => $cliente->user->cedula,
+            'rol'           => $cliente->user->rol->nombreRol,
+            'fechaRegistro' => $cliente->fechaRegistro,
+            'asistencias'   => $cliente->asistencias,
+            'membresias'    => $cliente->membresias,
         ];
 
         return response()->json([
             'status' => 200,
-            'message' => 'Detalles del administrador',
+            'message' => 'Detalles del cliente',
             'data' => $result
         ]);
     }
@@ -68,29 +72,31 @@ class AdminController extends Controller
             $data = is_array($data_input) ? array_map('trim', $data_input) : array_map('trim', json_decode($data_input, true));
 
             $rules = [
-                'idUsuario' => 'required|exists:users,idUsuario'
+                'idUsuario' => 'required|exists:users,idUsuario',
+                'fechaRegistro' => 'nullable|date'
             ];
 
             $isValid = \validator($data, $rules);
 
             if (!$isValid->fails()) {
-                // Verificar que el usuario tenga rol de admin
+                // Verificar que el usuario tenga rol de cliente
                 $user = User::find($data['idUsuario']);
-                if ($user->idRol !== 1) {
+                if ($user->idRol !== 2) {
                     return response()->json([
                         'status' => 400,
-                        'message' => 'El usuario debe tener rol de administrador'
+                        'message' => 'El usuario debe tener rol de cliente'
                     ], 400);
                 }
 
-                $admin = new Admin();
-                $admin->idUsuario = $data['idUsuario'];
-                $admin->save();
+                $cliente = new Cliente();
+                $cliente->idUsuario = $data['idUsuario'];
+                $cliente->fechaRegistro = $data['fechaRegistro'] ?? now()->toDateString();
+                $cliente->save();
 
                 return response()->json([
                     'status' => 201,
-                    'message' => 'Administrador creado correctamente',
-                    'data' => $admin
+                    'message' => 'Cliente creado correctamente',
+                    'data' => $cliente
                 ]);
             } else {
                 return response()->json([
@@ -109,12 +115,12 @@ class AdminController extends Controller
 
     public function update(Request $request, $id): JsonResponse
     {
-        $admin = Admin::find($id);
+        $cliente = Cliente::find($id);
 
-        if (!$admin) {
+        if (!$cliente) {
             return response()->json([
                 'status' => 404,
-                'message' => 'Administrador no encontrado'
+                'message' => 'Cliente no encontrado'
             ], 404);
         }
 
@@ -123,32 +129,20 @@ class AdminController extends Controller
         if ($data_input) {
             $data = is_array($data_input) ? array_map('trim', $data_input) : array_map('trim', json_decode($data_input, true));
 
-            // No hay campos editables en la tabla admin actual
-            // Solo se puede cambiar el idUsuario si es necesario
             $rules = [
-                'idUsuario' => 'sometimes|exists:users,idUsuario'
+                'fechaRegistro' => 'nullable|date'
             ];
 
             $isValid = \validator($data, $rules);
 
             if (!$isValid->fails()) {
-                if (isset($data['idUsuario'])) {
-                    // Verificar que el nuevo usuario tenga rol de admin
-                    $user = User::find($data['idUsuario']);
-                    if ($user->idRol !== 1) {
-                        return response()->json([
-                            'status' => 400,
-                            'message' => 'El usuario debe tener rol de administrador'
-                        ], 400);
-                    }
-                    $admin->idUsuario = $data['idUsuario'];
-                }
-                $admin->save();
+                if (isset($data['fechaRegistro'])) $cliente->fechaRegistro = $data['fechaRegistro'];
+                $cliente->save();
 
                 return response()->json([
                     'status' => 200,
-                    'message' => 'Administrador actualizado correctamente',
-                    'data' => $admin
+                    'message' => 'Cliente actualizado correctamente',
+                    'data' => $cliente
                 ]);
             } else {
                 return response()->json([
@@ -167,20 +161,20 @@ class AdminController extends Controller
 
     public function destroy($id): JsonResponse
     {
-        $admin = Admin::find($id);
+        $cliente = Cliente::find($id);
 
-        if (!$admin) {
+        if (!$cliente) {
             return response()->json([
                 'status' => 404,
-                'message' => 'Administrador no encontrado'
+                'message' => 'Cliente no encontrado'
             ], 404);
         }
 
-        $admin->delete();
+        $cliente->delete();
 
         return response()->json([
             'status' => 200,
-            'message' => 'Administrador eliminado correctamente'
+            'message' => 'Cliente eliminado correctamente'
         ]);
     }
 }

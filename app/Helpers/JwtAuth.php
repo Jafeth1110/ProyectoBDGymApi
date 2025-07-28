@@ -16,10 +16,9 @@ class JwtAuth{
     }
 
     public function getToken($email, $password) {
-    $hashedPassword = hash('sha256', $password);
     $user = User::where('email', $email)->first();
 
-    if ($user && hash_equals($user->password, $hashedPassword)) {
+    if ($user && password_verify($password, $user->password)) {
         if(empty($user->idUsuario)) {  // Cambiado de $user->id a $user->idUsuario
             return [
                 'status' => 500,
@@ -33,7 +32,7 @@ class JwtAuth{
             'nombre' => $user->nombre,
             'rol' => $user->rol,
             'iat' => time(),
-            'exp' => time() + 2000
+            'exp' => time() + (24 * 60 * 60) // 24 horas en lugar de 33 minutos
         ];
 
         $data = JWT::encode($token, $this->key, 'HS256');
@@ -54,9 +53,15 @@ class JwtAuth{
         if(isset($jwt)){
             try{
                 $decoded=JWT::decode($jwt,new Key($this->key,'HS256')); //SI NO SE DECIFRA PUEDE QUE YA EXP EL TOKEN O LANZAR EXEP
+                \Log::info("Token decodificado exitosamente: " . json_encode($decoded));
             }catch(\DomainException $ex){ //LA BARRA INCLINADA JALA LA EXP DE DONDE ESTE CREADO
+                \Log::error("DomainException en JWT: " . $ex->getMessage());
                 $authFlag=false;
             }catch(ExpiredException $ex){
+                \Log::error("Token expirado: " . $ex->getMessage());
+                $authFlag=false;
+            }catch(\Exception $ex){
+                \Log::error("Error general en JWT: " . $ex->getMessage());
                 $authFlag=false;
             }
             if(!empty($decoded)&&is_object($decoded)&&isset($decoded->email)){
@@ -65,6 +70,8 @@ class JwtAuth{
             if($getId && $authFlag){
                 return $decoded;
             }
+        } else {
+            \Log::warning("No se recibió token JWT");
         }
         return $authFlag; //SI NO VIENE EL TOKEN SE MANDA FALSE
     }
