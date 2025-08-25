@@ -11,96 +11,54 @@ class EntrenadorController extends Controller
 {
     public function index(): JsonResponse
     {
-        $entrenadores = Entrenador::with(['user', 'user.rol'])->get();
-
-        $result = $entrenadores->map(function ($entrenador) {
-            return [
-                'idEntrenador' => $entrenador->idEntrenador,
-                'idUsuario'    => $entrenador->user->idUsuario,
-                'nombre'       => $entrenador->user->nombre,
-                'apellido'     => $entrenador->user->apellido,
-                'email'        => $entrenador->user->email,
-                'cedula'       => $entrenador->user->cedula,
-                'rol'          => $entrenador->user->rol,  // Ya es una cadena gracias al accessor
-                'especialidad' => $entrenador->especialidad,
-            ];
-        });
-
+        $entrenadores = \DB::select('EXEC pa_ObtenerEntrenadores');
         return response()->json([
             'status' => 200,
             'message' => 'Lista de entrenadores',
-            'data' => $result
+            'data' => $entrenadores
         ]);
     }
 
     public function show($id): JsonResponse
     {
-        $entrenador = Entrenador::with(['user', 'user.rol', 'inscripcionesClase'])->find($id);
-
-        if (!$entrenador) {
-            return response()->json([
+        $entrenador = \DB::select('EXEC pa_ObtenerEntrenadorID ?', [$id]);
+        if ($entrenador) {
+            $response = [
+                'status' => 200,
+                'message' => 'Detalles del entrenador',
+                'data' => $entrenador[0]
+            ];
+        } else {
+            $response = [
                 'status' => 404,
                 'message' => 'Entrenador no encontrado'
-            ], 404);
+            ];
         }
-
-        $result = [
-            'idEntrenador'      => $entrenador->idEntrenador,
-            'idUsuario'         => $entrenador->user->idUsuario,
-            'nombre'            => $entrenador->user->nombre,
-            'apellido'          => $entrenador->user->apellido,
-            'email'             => $entrenador->user->email,
-            'cedula'            => $entrenador->user->cedula,
-            'rol'               => $entrenador->user->rol,  // Ya es una cadena gracias al accessor
-            'especialidad'      => $entrenador->especialidad,
-            'inscripcionesClase' => $entrenador->inscripcionesClase,
-        ];
-
-        return response()->json([
-            'status' => 200,
-            'message' => 'Detalles del entrenador',
-            'data' => $result
-        ]);
+        return response()->json($response, $response['status']);
     }
 
     public function store(Request $request): JsonResponse
     {
         $data_input = $request->input('data', null);
-
         if ($data_input) {
             $data = is_array($data_input) ? array_map('trim', $data_input) : array_map('trim', json_decode($data_input, true));
-
             $rules = [
-                'idUsuario' => 'required|exists:users,idUsuario',
+                'idUsuario' => 'required|integer',
                 'especialidad' => 'required|string|max:45'
             ];
-
             $isValid = \validator($data, $rules);
-
             if (!$isValid->fails()) {
-                // Verificar que el usuario tenga rol de entrenador
-                $user = User::find($data['idUsuario']);
-                if ($user->idRol !== 3) {
-                    return response()->json([
-                        'status' => 400,
-                        'message' => 'El usuario debe tener rol de entrenador'
-                    ], 400);
-                }
-
-                $entrenador = new Entrenador();
-                $entrenador->idUsuario = $data['idUsuario'];
-                $entrenador->especialidad = $data['especialidad'];
-                $entrenador->save();
-
+                \DB::statement('EXEC pa_CrearEntrenador ?,?', [
+                    $data['idUsuario'],
+                    $data['especialidad']
+                ]);
                 return response()->json([
                     'status' => 201,
-                    'message' => 'Entrenador creado correctamente',
-                    'data' => $entrenador
+                    'message' => 'Entrenador creado correctamente'
                 ]);
             } else {
                 return response()->json([
                     'status' => 406,
-                    'message' => 'Datos inválidos',
                     'errors' => $isValid->errors()
                 ], 406);
             }
@@ -114,39 +72,25 @@ class EntrenadorController extends Controller
 
     public function update(Request $request, $id): JsonResponse
     {
-        $entrenador = Entrenador::find($id);
-
-        if (!$entrenador) {
-            return response()->json([
-                'status' => 404,
-                'message' => 'Entrenador no encontrado'
-            ], 404);
-        }
-
         $data_input = $request->input('data', null);
-
         if ($data_input) {
             $data = is_array($data_input) ? array_map('trim', $data_input) : array_map('trim', json_decode($data_input, true));
-
             $rules = [
                 'especialidad' => 'string|max:45'
             ];
-
             $isValid = \validator($data, $rules);
-
             if (!$isValid->fails()) {
-                if (isset($data['especialidad'])) $entrenador->especialidad = $data['especialidad'];
-                $entrenador->save();
-
+                \DB::statement('EXEC pa_ActualizarEntrenador ?,?', [
+                    $id,
+                    $data['especialidad'] ?? null
+                ]);
                 return response()->json([
                     'status' => 200,
-                    'message' => 'Entrenador actualizado correctamente',
-                    'data' => $entrenador
+                    'message' => 'Entrenador actualizado correctamente'
                 ]);
             } else {
                 return response()->json([
                     'status' => 406,
-                    'message' => 'Datos inválidos',
                     'errors' => $isValid->errors()
                 ], 406);
             }
@@ -160,17 +104,7 @@ class EntrenadorController extends Controller
 
     public function destroy($id): JsonResponse
     {
-        $entrenador = Entrenador::find($id);
-
-        if (!$entrenador) {
-            return response()->json([
-                'status' => 404,
-                'message' => 'Entrenador no encontrado'
-            ], 404);
-        }
-
-        $entrenador->delete();
-
+        \DB::statement('EXEC pa_BorrarEntrenador ?', [$id]);
         return response()->json([
             'status' => 200,
             'message' => 'Entrenador eliminado correctamente'

@@ -9,8 +9,7 @@ class DetalleMantenimientoController extends Controller
 {
     public function index()
     {
-        $detalles = DetalleMantenimiento::all();
-
+        $detalles = \DB::select('EXEC pa_ObtenerDetalleMantenimientos');
         return response()->json([
             'status' => 200,
             'message' => 'Todos los detalles de mantenimiento :)',
@@ -18,29 +17,46 @@ class DetalleMantenimientoController extends Controller
         ]);
     }
 
+    public function show($id)
+    {
+        $detalle = \DB::select('EXEC pa_ObtenerDetalleMantenimientoID ?', [$id]);
+        if ($detalle) {
+            $response = [
+                'status' => 200,
+                'message' => 'Detalles del mantenimiento :)',
+                'detalle' => $detalle[0]
+            ];
+        } else {
+            $response = [
+                'status' => 404,
+                'message' => 'Detalle de mantenimiento no encontrado >:('
+            ];
+        }
+        return response()->json($response, $response['status']);
+    }
+
     public function store(Request $request)
     {
         $data_input = $request->input('data', null);
-
         if ($data_input) {
             $data = is_array($data_input) ? array_map('trim', $data_input) : array_map('trim', json_decode($data_input, true));
-
             $rules = [
                 'idAdmin' => 'required|integer',
                 'idEquipo' => 'required|integer',
                 'idMantenimiento' => 'required|integer',
                 'fechaMantenimiento' => 'required|date'
             ];
-
             $isValid = \validator($data, $rules);
-
             if (!$isValid->fails()) {
-                $detalle = DetalleMantenimiento::create($data);
-
+                \DB::statement('EXEC pa_CrearDetalleMantenimiento ?,?,?,?', [
+                    $data['idAdmin'],
+                    $data['idEquipo'],
+                    $data['idMantenimiento'],
+                    $data['fechaMantenimiento']
+                ]);
                 $response = [
                     'status' => 201,
-                    'message' => 'Detalle de mantenimiento registrado :)',
-                    'detalle' => $detalle
+                    'message' => 'Detalle de mantenimiento registrado :)'
                 ];
             } else {
                 $response = [
@@ -55,101 +71,56 @@ class DetalleMantenimientoController extends Controller
                 'message' => 'No se encontró el objeto data >:('
             ];
         }
-
-        return response()->json($response, $response['status']);
-    }
-
-    public function show($id)
-    {
-        $detalle = DetalleMantenimiento::find($id);
-
-        if ($detalle) {
-            $response = [
-                'status' => 200,
-                'message' => 'Detalles del mantenimiento :)',
-                'detalle' => $detalle
-            ];
-        } else {
-            $response = [
-                'status' => 404,
-                'message' => 'Detalle de mantenimiento no encontrado >:('
-            ];
-        }
-
-        return response()->json($response, $response['status']);
-    }
-
-    public function destroy($id)
-    {
-        $deleted = DetalleMantenimiento::destroy($id);
-
-        if ($deleted) {
-            $response = [
-                'status' => 200,
-                'message' => 'Detalle de mantenimiento eliminado correctamente :)'
-            ];
-        } else {
-            $response = [
-                'status' => 404,
-                'message' => 'Detalle de mantenimiento no encontrado >:('
-            ];
-        }
-
         return response()->json($response, $response['status']);
     }
 
     public function update(Request $request, $id)
     {
-        $detalle = DetalleMantenimiento::find($id);
-
-        if ($detalle) {
-            $data_input = $request->input('data', null);
-
-            if ($data_input) {
-                $data = is_array($data_input) ? array_map('trim', $data_input) : array_map('trim', json_decode($data_input, true));
-
-                $rules = [
-                    'idAdmin' => 'integer',
-                    'idEquipo' => 'integer',
-                    'idMantenimiento' => 'integer',
-                    'fechaMantenimiento' => 'date'
+        $data_input = $request->input('data', null);
+        if ($data_input) {
+            $data = is_array($data_input) ? array_map('trim', $data_input) : array_map('trim', json_decode($data_input, true));
+            $rules = [
+                'idAdmin' => 'integer',
+                'idEquipo' => 'integer',
+                'idMantenimiento' => 'integer',
+                'fechaMantenimiento' => 'date'
+            ];
+            $isValid = \validator($data, $rules);
+            if (!$isValid->fails()) {
+                \DB::statement('EXEC pa_ActualizarDetalleMantenimiento ?,?,?,?,?', [
+                    $id,
+                    $data['idAdmin'] ?? null,
+                    $data['idEquipo'] ?? null,
+                    $data['idMantenimiento'] ?? null,
+                    $data['fechaMantenimiento'] ?? null
+                ]);
+                $response = [
+                    'status' => 200,
+                    'message' => 'Detalle de mantenimiento actualizado :)'
                 ];
-
-                $isValid = \validator($data, $rules);
-
-                if (!$isValid->fails()) {
-                    if (isset($data['idAdmin'])) $detalle->idAdmin = $data['idAdmin'];
-                    if (isset($data['idEquipo'])) $detalle->idEquipo = $data['idEquipo'];
-                    if (isset($data['idMantenimiento'])) $detalle->idMantenimiento = $data['idMantenimiento'];
-                    if (isset($data['fechaMantenimiento'])) $detalle->fechaMantenimiento = $data['fechaMantenimiento'];
-
-                    $detalle->save();
-
-                    $response = [
-                        'status' => 200,
-                        'message' => 'Detalle de mantenimiento actualizado :)',
-                        'detalle' => $detalle
-                    ];
-                } else {
-                    $response = [
-                        'status' => 406,
-                        'message' => 'Datos inválidos >:(',
-                        'errors' => $isValid->errors()
-                    ];
-                }
             } else {
                 $response = [
-                    'status' => 400,
-                    'message' => 'No se encontraron datos para actualizar >:('
+                    'status' => 406,
+                    'message' => 'Datos inválidos >:(',
+                    'errors' => $isValid->errors()
                 ];
             }
         } else {
             $response = [
-                'status' => 404,
-                'message' => 'Detalle de mantenimiento no encontrado >:('
+                'status' => 400,
+                'message' => 'No se encontraron datos para actualizar >:('
             ];
         }
+        return response()->json($response, $response['status']);
+    }
 
+    public function destroy($id)
+    {
+        \DB::statement('EXEC pa_BorrarDetalleMantenimiento ?', [$id]);
+        $response = [
+            'status' => 200,
+            'message' => 'Detalle de mantenimiento eliminado correctamente :)'
+        ];
         return response()->json($response, $response['status']);
     }
 }

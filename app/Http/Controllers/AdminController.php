@@ -11,91 +11,50 @@ class AdminController extends Controller
 {
     public function index(): JsonResponse
     {
-        $admins = Admin::with(['user', 'user.rol'])->get();
-
-        $result = $admins->map(function ($admin) {
-            return [
-                'idAdmin'   => $admin->idAdmin,
-                'idUsuario' => $admin->user->idUsuario,
-                'nombre'    => $admin->user->nombre,
-                'apellido'  => $admin->user->apellido,
-                'email'     => $admin->user->email,
-                'cedula'    => $admin->user->cedula,
-                'rol'       => $admin->user->rol,  // Ya es una cadena gracias al accessor
-            ];
-        });
-
+        $admins = \DB::select('EXEC pa_ObtenerAdmins');
         return response()->json([
             'status' => 200,
             'message' => 'Lista de administradores',
-            'data' => $result
+            'data' => $admins
         ]);
     }
 
     public function show($id): JsonResponse
     {
-        $admin = Admin::with(['user', 'user.rol'])->find($id);
-
-        if (!$admin) {
-            return response()->json([
+        $admin = \DB::select('EXEC pa_ObtenerAdminID ?', [$id]);
+        if ($admin) {
+            $response = [
+                'status' => 200,
+                'message' => 'Detalles del administrador',
+                'data' => $admin[0]
+            ];
+        } else {
+            $response = [
                 'status' => 404,
                 'message' => 'Administrador no encontrado'
-            ], 404);
+            ];
         }
-
-        $result = [
-            'idAdmin'   => $admin->idAdmin,
-            'idUsuario' => $admin->user->idUsuario,
-            'nombre'    => $admin->user->nombre,
-            'apellido'  => $admin->user->apellido,
-            'email'     => $admin->user->email,
-            'cedula'    => $admin->user->cedula,
-            'rol'       => $admin->user->rol,
-        ];
-
-        return response()->json([
-            'status' => 200,
-            'message' => 'Detalles del administrador',
-            'data' => $result
-        ]);
+        return response()->json($response, $response['status']);
     }
 
     public function store(Request $request): JsonResponse
     {
         $data_input = $request->input('data', null);
-
         if ($data_input) {
             $data = is_array($data_input) ? array_map('trim', $data_input) : array_map('trim', json_decode($data_input, true));
-
             $rules = [
-                'idUsuario' => 'required|exists:users,idUsuario'
+                'idUsuario' => 'required|integer'
             ];
-
             $isValid = \validator($data, $rules);
-
             if (!$isValid->fails()) {
-                // Verificar que el usuario tenga rol de admin
-                $user = User::find($data['idUsuario']);
-                if ($user->idRol !== 1) {
-                    return response()->json([
-                        'status' => 400,
-                        'message' => 'El usuario debe tener rol de administrador'
-                    ], 400);
-                }
-
-                $admin = new Admin();
-                $admin->idUsuario = $data['idUsuario'];
-                $admin->save();
-
+                \DB::statement('EXEC pa_CrearAdmin ?', [$data['idUsuario']]);
                 return response()->json([
                     'status' => 201,
-                    'message' => 'Administrador creado correctamente',
-                    'data' => $admin
+                    'message' => 'Administrador creado correctamente'
                 ]);
             } else {
                 return response()->json([
                     'status' => 406,
-                    'message' => 'Datos inválidos',
                     'errors' => $isValid->errors()
                 ], 406);
             }
@@ -109,51 +68,25 @@ class AdminController extends Controller
 
     public function update(Request $request, $id): JsonResponse
     {
-        $admin = Admin::find($id);
-
-        if (!$admin) {
-            return response()->json([
-                'status' => 404,
-                'message' => 'Administrador no encontrado'
-            ], 404);
-        }
-
         $data_input = $request->input('data', null);
-
         if ($data_input) {
             $data = is_array($data_input) ? array_map('trim', $data_input) : array_map('trim', json_decode($data_input, true));
-
-            // No hay campos editables en la tabla admin actual
-            // Solo se puede cambiar el idUsuario si es necesario
             $rules = [
-                'idUsuario' => 'sometimes|exists:users,idUsuario'
+                'idUsuario' => 'sometimes|integer'
             ];
-
             $isValid = \validator($data, $rules);
-
             if (!$isValid->fails()) {
-                if (isset($data['idUsuario'])) {
-                    // Verificar que el nuevo usuario tenga rol de admin
-                    $user = User::find($data['idUsuario']);
-                    if ($user->idRol !== 1) {
-                        return response()->json([
-                            'status' => 400,
-                            'message' => 'El usuario debe tener rol de administrador'
-                        ], 400);
-                    }
-                    $admin->idUsuario = $data['idUsuario'];
-                }
-                $admin->save();
-
+                \DB::statement('EXEC pa_ActualizarAdmin ?,?', [
+                    $id,
+                    $data['idUsuario'] ?? null
+                ]);
                 return response()->json([
                     'status' => 200,
-                    'message' => 'Administrador actualizado correctamente',
-                    'data' => $admin
+                    'message' => 'Administrador actualizado correctamente'
                 ]);
             } else {
                 return response()->json([
                     'status' => 406,
-                    'message' => 'Datos inválidos',
                     'errors' => $isValid->errors()
                 ], 406);
             }
@@ -167,17 +100,7 @@ class AdminController extends Controller
 
     public function destroy($id): JsonResponse
     {
-        $admin = Admin::find($id);
-
-        if (!$admin) {
-            return response()->json([
-                'status' => 404,
-                'message' => 'Administrador no encontrado'
-            ], 404);
-        }
-
-        $admin->delete();
-
+        \DB::statement('EXEC pa_BorrarAdmin ?', [$id]);
         return response()->json([
             'status' => 200,
             'message' => 'Administrador eliminado correctamente'

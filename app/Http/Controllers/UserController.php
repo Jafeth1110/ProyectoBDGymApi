@@ -1,6 +1,8 @@
 <?php
 
 namespace App\Http\Controllers;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Hash;
 
 use Illuminate\Http\Request;
 use App\Helpers\JwtAuth;
@@ -28,18 +30,15 @@ class UserController extends Controller
     }
     
     public function index() {
-        $users = User::with(['rol', 'telefonos'])->get();
-        
-        // Transformar los datos para incluir teléfonos de manera consistente
-        $usersFormatted = $users->map(function ($user) {
-            $telefonos = $user->telefonos->map(function ($tel) {
-                return [
-                    'id' => $tel->idTelefono,
-                    'telefono' => $tel->telefono,
-                    'tipoTel' => $tel->tipoTel
-                ];
-            });
-
+        $users = \DB::select('EXEC pa_ObtenerUsuarios');
+        $usersFormatted = collect($users)->map(function ($user) {
+            $telefonos = \DB::select('EXEC pa_ObtenerTelefonosPorUsuario ?', [$user->idUsuario]);
+            $rol = null;
+            switch ($user->idRol) {
+                case 1: $rol = 'admin'; break;
+                case 2: $rol = 'cliente'; break;
+                case 3: $rol = 'entrenador'; break;
+            }
             return [
                 'idUsuario' => $user->idUsuario,
                 'nombre' => $user->nombre,
@@ -47,17 +46,15 @@ class UserController extends Controller
                 'cedula' => $user->cedula,
                 'email' => $user->email,
                 'idRol' => $user->idRol,
-                'rol' => $user->rol,
+                'rol' => $rol,
                 'telefonos_list' => $telefonos
             ];
         });
-
         $response = [
             'status' => 200,
             'message' => 'Lista de usuarios :)',
             'users' => $usersFormatted
         ];
-
         return response()->json($response, $response['status']);
     }
 
@@ -82,16 +79,6 @@ class UserController extends Controller
             'idRol' => 'required|integer|in:1,2,3',
         ];
 
-        // Validación de teléfonos si se proporcionan
-        if (isset($data['telefonos']) && is_array($data['telefonos'])) {
-            $rules['telefonos'] = 'array|min:1';
-            $rules['telefonos.*.telefono'] = 'required|numeric|digits_between:8,12|unique:telefonos,telefono';
-            $rules['telefonos.*.tipoTel'] = 'required|string|in:celular,casa,trabajo';
-        } elseif (isset($data['telefono']) && !empty($data['telefono'])) {
-            $rules['telefono'] = 'required|numeric|digits_between:8,12|unique:telefonos,telefono';
-            $rules['tipoTel'] = 'required|string|in:celular,casa,trabajo';
-        }
-
         $validator = \Validator::make($data, $rules);
 
         if ($validator->fails()) {
@@ -103,48 +90,26 @@ class UserController extends Controller
         }
 
         try {
-            // Crear usuario
-            $user = User::create([
-                'nombre' => $data['nombre'],
-                'apellido' => $data['apellido'],
-                'cedula' => $data['cedula'],
-                'email' => $data['email'],
-                'password' => bcrypt($data['password']),
-                'idRol' => $data['idRol']
+            $data['email'] = strtolower($data['email']);
+            $user = \DB::select('EXEC pa_ObtenerUsuarioPorEmail ?', [$data['email']]);
+            if ($user && count($user) > 0) {
+                return response()->json([
+                    'status' => 409,
+                    'message' => 'El email ya está en uso por otro usuario'
+                ], 409);
+            }
+            \DB::statement('EXEC pa_CrearUsuario ?,?,?,?,?,?', [
+                $data['nombre'],
+                $data['apellido'],
+                $data['cedula'],
+                $data['email'],
+                bcrypt($data['password']),
+                $data['idRol']
             ]);
-
-            // Crear registro específico según el rol
-            $this->createRoleSpecificRecord($user, $data['idRol']);
-
-            // Manejar teléfonos si se proporcionan
-            $this->handleTelefonos($user, $data);
-
-            // Cargar relaciones para la respuesta
-            $user->load(['rol', 'telefonos']);
-
-            $telefonos = $user->telefonos->map(function ($tel) {
-                return [
-                    'id' => $tel->idTelefono,
-                    'telefono' => $tel->telefono,
-                    'tipoTel' => $tel->tipoTel
-                ];
-            });
-
             return response()->json([
                 'status' => 201,
-                'message' => 'Usuario creado exitosamente',
-                'user' => [
-                    'idUsuario' => $user->idUsuario,
-                    'nombre' => $user->nombre,
-                    'apellido' => $user->apellido,
-                    'cedula' => $user->cedula,
-                    'email' => $user->email,
-                    'idRol' => $user->idRol,
-                    'rol' => $user->rol,
-                    'telefonos_list' => $telefonos
-                ]
+                'message' => 'Usuario creado exitosamente'
             ], 201);
-
         } catch (\Exception $e) {
             return response()->json([
                 'status' => 500,
@@ -155,33 +120,22 @@ class UserController extends Controller
     }
 
     public function show($email) {
-        $user = User::with(['rol', 'telefonos'])
-                   ->where('email', $email)
-                   ->first();
-
-        if ($user) {
-            $telefonos = $user->telefonos->map(function ($tel) {
-                return [
-                    'id' => $tel->idTelefono,
-                    'telefono' => $tel->telefono,
-                    'tipoTel' => $tel->tipoTel
-                ];
-            });
-            
+        $user = \DB::select('EXEC pa_ObtenerUsuarioPorEmail ?', [$email]);
+        if ($user && count($user) > 0) {
+            $user = $user[0];
+            $telefonos = \DB::select('EXEC pa_ObtenerTelefonosPorUsuario ?', [$user->idUsuario]);
             $user->telefonos_list = $telefonos;
-            
             $response = [
                 'status' => 200,
-                'message' => 'Detalles del usuario :)',
+                'message' => 'Usuario encontrado',
                 'user' => $user
             ];
         } else {
             $response = [
                 'status' => 404,
-                'message' => 'Usuario no encontrado >:('
+                'message' => 'Usuario no encontrado'
             ];
         }
-
         return response()->json($response, $response['status']);
     }
 
@@ -192,79 +146,57 @@ class UserController extends Controller
                 'message' => 'Email inválido >:('
             ], 400);
         }
-
-        $deleted = User::where('email', $email)->delete();
-
-        if ($deleted) {
-            $response = [
-                'status' => 200,
-                'message' => 'Usuario eliminado exitosamente :)'
-            ];
+        $user = \DB::select('EXEC pa_ObtenerUsuarioPorEmail ?', [$email]);
+        if ($user && count($user) > 0) {
+            $idUsuario = $user[0]->idUsuario;
+            try {
+                \DB::statement('EXEC pa_BorrarUsuario ?', [$idUsuario]);
+                $response = [
+                    'status' => 200,
+                    'message' => 'Usuario eliminado exitosamente :)'
+                ];
+            } catch (\Exception $e) {
+                $response = [
+                    'status' => 500,
+                    'message' => 'Error al eliminar usuario',
+                    'error' => $e->getMessage()
+                ];
+            }
         } else {
             $response = [
                 'status' => 404,
                 'message' => 'Usuario no encontrado >:('
             ];
         }
-
         return response()->json($response, $response['status']);
     }
 
     public function update(Request $request, $email) {
-        $user = User::where('email', $email)->first();
-
-        if (!$user) {
+        $user = \DB::select('EXEC pa_ObtenerUsuarioPorEmail ?', [$email]);
+        if (!$user || count($user) == 0) {
             return response()->json([
                 'status' => 404,
                 'message' => 'Usuario no encontrado >:('
             ], 404);
         }
-
+        $idUsuario = $user[0]->idUsuario;
         $data_input = $request->input('data', null);
-
         if (!$data_input) {
             return response()->json([
                 'status' => 400,
                 'message' => 'No se encontraron datos para actualizar >:('
             ], 400);
         }
-
         $data = $this->cleanData(is_array($data_input) ? $data_input : json_decode($data_input, true));
-
         $rules = [
             'nombre' => 'sometimes|required|string|max:45',
             'apellido' => 'sometimes|required|string|max:45',
-            'cedula' => 'sometimes|required|string|max:45|unique:users,cedula,' . $user->idUsuario . ',idUsuario',
-            'email' => 'sometimes|required|email|max:45|unique:users,email,' . $user->idUsuario . ',idUsuario',
+            'cedula' => 'sometimes|required|string|max:45',
+            'email' => 'sometimes|required|email|max:45',
             'password' => 'sometimes|required|string|min:6',
             'idRol' => 'sometimes|required|integer|in:1,2,3',
         ];
-
-        // Validación de teléfonos si se proporcionan
-        if (isset($data['telefonos']) && is_array($data['telefonos'])) {
-            foreach ($data['telefonos'] as $index => $telefono) {
-                $telefonoExistente = $this->isTelefonoExistente($telefono['telefono'], $user->idUsuario);
-                if ($telefonoExistente) {
-                    return response()->json([
-                        'status' => 422,
-                        'message' => 'El teléfono ' . $telefono['telefono'] . ' ya está registrado',
-                        'errors' => ["telefonos.{$index}.telefono" => ['El teléfono ya está en uso']]
-                    ], 422);
-                }
-            }
-        } elseif (isset($data['telefono']) && !empty($data['telefono'])) {
-            $telefonoExistente = $this->isTelefonoExistente($data['telefono'], $user->idUsuario);
-            if ($telefonoExistente) {
-                return response()->json([
-                    'status' => 422,
-                    'message' => 'El teléfono ya está registrado',
-                    'errors' => ['telefono' => ['El teléfono ya está en uso']]
-                ], 422);
-            }
-        }
-
         $validator = \Validator::make($data, $rules);
-
         if ($validator->fails()) {
             return response()->json([
                 'status' => 422,
@@ -272,40 +204,24 @@ class UserController extends Controller
                 'errors' => $validator->errors()
             ], 422);
         }
-
         try {
-            // Actualizar campos del usuario
-            if (isset($data['nombre'])) $user->nombre = $data['nombre'];
-            if (isset($data['apellido'])) $user->apellido = $data['apellido'];
-            if (isset($data['cedula'])) $user->cedula = $data['cedula'];
-            if (isset($data['email'])) $user->email = $data['email'];
-            if (isset($data['password'])) $user->password = bcrypt($data['password']);
-            if (isset($data['idRol'])) $user->idRol = $data['idRol'];
-
-            $user->save();
-
-            // Manejar actualización de teléfonos
-            $this->handleTelefonos($user, $data, true);
-
-            // Cargar relaciones para la respuesta
-            $user->load(['rol', 'telefonos']);
-
-            $telefonos = $user->telefonos->map(function ($tel) {
-                return [
-                    'id' => $tel->idTelefono,
-                    'telefono' => $tel->telefono,
-                    'tipoTel' => $tel->tipoTel
-                ];
-            });
-
-            $user->telefonos_list = $telefonos;
-
+            \DB::statement('EXEC pa_ActualizarUsuario ?,?,?,?,?,?,?', [
+                $idUsuario,
+                $data['nombre'] ?? $user[0]->nombre,
+                $data['apellido'] ?? $user[0]->apellido,
+                $data['cedula'] ?? $user[0]->cedula,
+                $data['email'] ?? $user[0]->email,
+                isset($data['password']) ? bcrypt($data['password']) : $user[0]->password,
+                $data['idRol'] ?? $user[0]->idRol
+            ]);
+            $userUpdated = \DB::select('EXEC pa_ObtenerUsuarioID ?', [$idUsuario]);
+            $telefonos = \DB::select('EXEC pa_ObtenerTelefonosPorUsuario ?', [$idUsuario]);
+            $userUpdated[0]->telefonos_list = $telefonos;
             return response()->json([
                 'status' => 200,
                 'message' => 'Usuario actualizado exitosamente',
-                'user' => $user
+                'user' => $userUpdated[0]
             ]);
-
         } catch (\Exception $e) {
             return response()->json([
                 'status' => 500,
@@ -315,58 +231,58 @@ class UserController extends Controller
         }
     }
 
-    public function login(Request $request) {
-        $data_input = $request->input('data', null);
-        
-        if (empty($data_input) || !is_array($data_input)) {
-            return response()->json([
-                'status' => 400,
-                'message' => 'Formato de datos incorrecto. Se espera un objeto con email y password.'
-            ], 400);
-        }
-        
-        $data = $this->cleanData($data_input);
+       public function login(Request $request)
+        {
+            $data = $request->input('data');
 
-        $rules = [
-            'email' => 'required|email',
-            'password' => 'required|min:6'
-        ];
+            if (!is_array($data)) {
+                return response()->json([
+                    'status' => 400,
+                    'message' => 'Formato incorrecto. Se esperaba {"data": {"email": "...", "password": "..."}}'
+                ], 400);
+            }
 
-        $validator = \Validator::make($data, $rules);
+            $validator = \Validator::make($data, [
+                'email' => 'required|email',
+                'password' => 'required|min:6'
+            ]);
 
-        if ($validator->fails()) {
-            return response()->json([
-                'status' => 422,
-                'message' => 'Error en la validación de los datos',
-                'errors' => $validator->errors()
-            ], 422);
-        }
+            if ($validator->fails()) {
+                return response()->json([
+                    'status' => 422,
+                    'message' => 'Error en la validación',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
 
-        try {
-            $jwt = new JwtAuth();
-            $response = $jwt->getToken($data['email'], $data['password']);
-            
-            if (is_array($response) && isset($response['status'])) {
-                return response()->json($response, $response['status']);
-            } else {
+            try {
+                $jwtAuth = new \App\Helpers\JwtAuth();
+                $token = $jwtAuth->getToken($data['email'], $data['password']);
+
+                if (is_array($token) && isset($token['status']) && $token['status'] !== 200) {
+                    return response()->json($token, $token['status']);
+                }
+
                 return response()->json([
                     'status' => 200,
                     'message' => 'Login exitoso',
-                    'token' => $response,
+                    'token' => $token,
                     'token_type' => 'bearer',
-                    'expires_in' => 2000
+                    'expires_in' => 86400 // 24 horas
                 ]);
-            }
-        } catch (\Exception $e) {
-            return response()->json([
-                'status' => 500,
-                'message' => 'Error interno del servidor al generar el token',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
 
-    public function logout(Request $request) {
+            } catch (\Exception $e) {
+                return response()->json([
+                    'status' => 500,
+                    'message' => 'Error interno en login',
+                    'error' => $e->getMessage()
+                ], 500);
+            }
+        }
+
+
+    public function logout(Request $request)
+    {
         $token = $request->bearerToken();
 
         if (!$token) {
@@ -376,20 +292,23 @@ class UserController extends Controller
             ], 400);
         }
 
-        $jwt = new JwtAuth();
+        $jwtAuth = new \App\Helpers\JwtAuth();
+        $valid = $jwtAuth->checkToken($token);
 
-        if ($jwt->checkToken($token)) {
+        if ($valid) {
             return response()->json([
                 'status' => 200,
-                'message' => 'Logout exitoso :) (elimina el token del lado del cliente)'
+                'message' => 'Logout exitoso. Elimina el token en el cliente.'
             ]);
         }
 
         return response()->json([
             'status' => 401,
-            'message' => 'Token inválido'
-        ]);
+            'message' => 'Token inválido o expirado'
+        ], 401);
     }
+
+
 
     public function getIdentity(Request $request) {
         $token = $request->bearerToken();
@@ -415,33 +334,27 @@ class UserController extends Controller
      * Agregar teléfono a un usuario
      */
     public function addTelefono(Request $request, $email) {
-        $user = User::where('email', $email)->first();
-
-        if (!$user) {
+        $user = \DB::select('EXEC pa_ObtenerUsuarioPorEmail ?', [$email]);
+        if (!$user || count($user) == 0) {
             return response()->json([
                 'status' => 404,
                 'message' => 'Usuario no encontrado'
             ], 404);
         }
-
+        $user = $user[0];
         $data_input = $request->input('data', null);
-
         if (!$data_input) {
             return response()->json([
                 'status' => 400,
                 'message' => 'No se encontró el objeto data'
             ], 400);
         }
-
         $data = $this->cleanData(is_array($data_input) ? $data_input : json_decode($data_input, true));
-
         $rules = [
-            'telefono' => 'required|numeric|digits_between:8,12|unique:telefonos,telefono',
+            'telefono' => 'required|numeric|digits_between:8,12',
             'tipoTel' => 'required|string|in:celular,casa,trabajo'
         ];
-
         $validator = \Validator::make($data, $rules);
-
         if ($validator->fails()) {
             return response()->json([
                 'status' => 422,
@@ -449,25 +362,17 @@ class UserController extends Controller
                 'errors' => $validator->errors()
             ], 422);
         }
-
         try {
-            $telefono = Telefono::create([
-                'idUsuario' => $user->idUsuario,
-                'telefono' => $data['telefono'],
-                'tipoTel' => $data['tipoTel'],
-                'idRol' => $user->idRol
+            \DB::statement('EXEC pa_CrearTelefono ?,?,?,?', [
+                $user->idUsuario,
+                $data['telefono'],
+                $data['tipoTel'],
+                $user->idRol
             ]);
-
             return response()->json([
                 'status' => 201,
-                'message' => 'Teléfono agregado correctamente',
-                'data' => [
-                    'idTelefono' => $telefono->idTelefono,
-                    'telefono' => $telefono->telefono,
-                    'tipoTel' => $telefono->tipoTel
-                ]
+                'message' => 'Teléfono agregado correctamente'
             ], 201);
-
         } catch (\Exception $e) {
             return response()->json([
                 'status' => 500,
@@ -481,23 +386,15 @@ class UserController extends Controller
      * Obtener teléfonos de un usuario
      */
     public function getTelefonos($email) {
-        $user = User::with('telefonos')->where('email', $email)->first();
-
-        if (!$user) {
+        $user = \DB::select('EXEC pa_ObtenerUsuarioPorEmail ?', [$email]);
+        if (!$user || count($user) == 0) {
             return response()->json([
                 'status' => 404,
                 'message' => 'Usuario no encontrado'
             ], 404);
         }
-
-        $telefonos = $user->telefonos->map(function ($tel) {
-            return [
-                'id' => $tel->idTelefono,
-                'telefono' => $tel->telefono,
-                'tipoTel' => $tel->tipoTel
-            ];
-        });
-
+        $idUsuario = $user[0]->idUsuario;
+        $telefonos = \DB::select('EXEC pa_ObtenerTelefonosPorUsuario ?', [$idUsuario]);
         return response()->json([
             'status' => 200,
             'message' => 'Teléfonos del usuario',
@@ -509,59 +406,28 @@ class UserController extends Controller
      * Actualizar todos los teléfonos de un usuario (reemplaza los existentes)
      */
     public function updateTelefonos(Request $request, $email) {
-        $user = User::where('email', $email)->first();
-
-        if (!$user) {
+        $user = \DB::select('EXEC pa_ObtenerUsuarioPorEmail ?', [$email]);
+        if (!$user || count($user) == 0) {
             return response()->json([
                 'status' => 404,
                 'message' => 'Usuario no encontrado'
             ], 404);
         }
-
+        $user = $user[0];
         $data_input = $request->input('data', null);
-
         if (!$data_input) {
             return response()->json([
                 'status' => 400,
                 'message' => 'No se encontró el objeto data'
             ], 400);
         }
-
         $data = $this->cleanData(is_array($data_input) ? $data_input : json_decode($data_input, true));
-
         $rules = [
             'telefonos' => 'required|array|min:1',
             'telefonos.*.telefono' => 'required|numeric|digits_between:8,12',
             'telefonos.*.tipoTel' => 'required|string|in:celular,casa,trabajo'
         ];
-
-        // Validar teléfonos únicos en el array
-        if (isset($data['telefonos'])) {
-            $telefonos = array_column($data['telefonos'], 'telefono');
-            if (count($telefonos) !== count(array_unique($telefonos))) {
-                return response()->json([
-                    'status' => 422,
-                    'message' => 'No se pueden repetir teléfonos en la misma solicitud',
-                    'errors' => ['telefonos' => ['Teléfonos duplicados encontrados']]
-                ], 422);
-            }
-
-            // Validar que no existan en otros usuarios
-            foreach ($data['telefonos'] as $index => $telefono) {
-                $telefonoExistente = $this->isTelefonoExistente($telefono['telefono'], $user->idUsuario);
-                
-                if ($telefonoExistente) {
-                    return response()->json([
-                        'status' => 422,
-                        'message' => 'El teléfono ' . $telefono['telefono'] . ' ya está registrado por otro usuario',
-                        'errors' => ["telefonos.{$index}.telefono" => ['El teléfono ya está en uso']]
-                    ], 422);
-                }
-            }
-        }
-
         $validator = \Validator::make($data, $rules);
-
         if ($validator->fails()) {
             return response()->json([
                 'status' => 422,
@@ -569,38 +435,24 @@ class UserController extends Controller
                 'errors' => $validator->errors()
             ], 422);
         }
-
         try {
-            // Eliminar teléfonos existentes
-            Telefono::where('idUsuario', $user->idUsuario)->delete();
-
-            // Crear nuevos teléfonos
+            // Eliminar teléfonos existentes usando PA (debes crear pa_BorrarTelefonosPorUsuario)
+            \DB::statement('EXEC pa_BorrarTelefonosPorUsuario ?', [$user->idUsuario]);
+            // Crear nuevos teléfonos usando PA
             foreach ($data['telefonos'] as $telefonoData) {
-                Telefono::create([
-                    'idUsuario' => $user->idUsuario,
-                    'telefono' => $telefonoData['telefono'],
-                    'tipoTel' => $telefonoData['tipoTel'],
-                    'idRol' => $user->idRol
+                \DB::statement('EXEC pa_CrearTelefono ?,?,?,?', [
+                    $user->idUsuario,
+                    $telefonoData['telefono'],
+                    $telefonoData['tipoTel'],
+                    $user->idRol
                 ]);
             }
-
-            // Cargar usuario con telefonos actualizados
-            $user->load('telefonos');
-
-            $telefonos = $user->telefonos->map(function ($tel) {
-                return [
-                    'id' => $tel->idTelefono,
-                    'telefono' => $tel->telefono,
-                    'tipoTel' => $tel->tipoTel
-                ];
-            });
-
+            $telefonos = \DB::select('EXEC pa_ObtenerTelefonosPorUsuario ?', [$user->idUsuario]);
             return response()->json([
                 'status' => 200,
                 'message' => 'Teléfonos actualizados correctamente',
                 'data' => $telefonos
             ]);
-
         } catch (\Exception $e) {
             return response()->json([
                 'status' => 500,
@@ -614,23 +466,20 @@ class UserController extends Controller
      * Eliminar todos los teléfonos de un usuario
      */
     public function clearTelefonos($email) {
-        $user = User::where('email', $email)->first();
-
-        if (!$user) {
+        $user = \DB::select('EXEC pa_ObtenerUsuarioPorEmail ?', [$email]);
+        if (!$user || count($user) == 0) {
             return response()->json([
                 'status' => 404,
                 'message' => 'Usuario no encontrado'
             ], 404);
         }
-
+        $idUsuario = $user[0]->idUsuario;
         try {
-            $deletedCount = Telefono::where('idUsuario', $user->idUsuario)->delete();
-
+            \DB::statement('EXEC pa_BorrarTelefonosPorUsuario ?', [$idUsuario]);
             return response()->json([
                 'status' => 200,
-                'message' => "Se eliminaron {$deletedCount} teléfonos correctamente"
+                'message' => 'Se eliminaron todos los teléfonos correctamente'
             ]);
-
         } catch (\Exception $e) {
             return response()->json([
                 'status' => 500,
