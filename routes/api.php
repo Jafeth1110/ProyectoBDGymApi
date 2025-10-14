@@ -81,6 +81,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/mantenimiento/{id}', [MantenimientoController::class, 'show']);
         Route::put('/mantenimiento/{id}', [MantenimientoController::class, 'update']);
         Route::delete('/mantenimiento/{id}', [MantenimientoController::class, 'destroy']);
+        Route::get('/mantenimiento/current-admin', [MantenimientoController::class, 'getCurrentAdmin']);
 
         /* RUTAS DETALLE MANTENIMIENTO */
         Route::get('/detallemantenimiento', [DetalleMantenimientoController::class, 'index']);

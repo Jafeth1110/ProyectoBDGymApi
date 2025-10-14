@@ -123,4 +123,14 @@ class DetalleMantenimientoController extends Controller
         ];
         return response()->json($response, $response['status']);
     }
+
+    public function getByUserId($idUsuario)
+    {
+        $admin = \App\Models\Admin::where('idUsuario', $idUsuario)->first();
+        if ($admin) {
+            return response()->json(['admin' => $admin], 200);
+        } else {
+            return response()->json(['message' => 'Admin no encontrado'], 404);
+        }
+    }
 }
