@@ -9,6 +9,11 @@ use App\Http\Controllers\DetalleMantenimientoController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\ClienteController;
 use App\Http\Controllers\EntrenadorController;
+use App\Http\Controllers\ClaseController;
+use App\Http\Controllers\InscripcionClaseController;
+use App\Http\Controllers\MembresiaController;
+use App\Http\Controllers\MetodoPagoController;
+use App\Http\Controllers\PagoController;
 
 Route::prefix('v1')->group(function () {
     
@@ -89,5 +94,40 @@ Route::prefix('v1')->group(function () {
         Route::get('/detallemantenimiento/{id}', [DetalleMantenimientoController::class, 'show']);
         Route::put('/detallemantenimiento/{id}', [DetalleMantenimientoController::class, 'update']);
         Route::delete('/detallemantenimiento/{id}', [DetalleMantenimientoController::class, 'destroy']);
+
+        /* RUTAS CLASES */
+        Route::get('/clases', [ClaseController::class, 'index']);
+        Route::post('/clases', [ClaseController::class, 'store']);
+        Route::get('/clases/{id}', [ClaseController::class, 'show']);
+        Route::put('/clases/{id}', [ClaseController::class, 'update']);
+        Route::delete('/clases/{id}', [ClaseController::class, 'destroy']);
+
+        /* RUTAS INSCRIPCIONES CLASES */
+        Route::get('/inscripcionclase', [InscripcionClaseController::class, 'index']);
+        Route::post('/inscripcionclase', [InscripcionClaseController::class, 'store']);
+        Route::get('/inscripcionclase/{id}', [InscripcionClaseController::class, 'show']);
+        Route::put('/inscripcionclase/{id}', [InscripcionClaseController::class, 'update']);
+        Route::delete('/inscripcionclase/{id}', [InscripcionClaseController::class, 'destroy']);
+
+        /* RUTAS MEMBRESIAS */
+        Route::get('/membresias', [MembresiaController::class, 'index']);
+        Route::post('/membresias', [MembresiaController::class, 'store']);
+        Route::get('/membresias/{id}', [MembresiaController::class, 'show']);
+        Route::put('/membresias/{id}', [MembresiaController::class, 'update']);
+        Route::delete('/membresias/{id}', [MembresiaController::class, 'destroy']);
+
+        /* RUTAS MÉTODOS DE PAGO */
+        Route::get('/metodospago', [MetodoPagoController::class, 'index']);
+        Route::post('/metodospago', [MetodoPagoController::class, 'store']);
+        Route::get('/metodospago/{id}', [MetodoPagoController::class, 'show']);
+        Route::put('/metodospago/{id}', [MetodoPagoController::class, 'update']);
+        Route::delete('/metodospago/{id}', [MetodoPagoController::class, 'destroy']);
+
+        /* RUTAS PAGOS */
+        Route::get('/pagos', [PagoController::class, 'index']);
+        Route::post('/pagos', [PagoController::class, 'store']);
+        Route::get('/pagos/{id}', [PagoController::class, 'show']);
+        Route::put('/pagos/{id}', [PagoController::class, 'update']);
+        Route::delete('/pagos/{id}', [PagoController::class, 'destroy']);
     });
 });
