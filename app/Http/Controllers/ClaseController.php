@@ -48,8 +48,10 @@ class ClaseController extends Controller
             $data = $this->cleanData($request->input('data', $request->all()));
 
             $validator = Validator::make($data, [
-                'horario' => 'required|date',
+                'diaSemana' => 'required|string|in:Lunes,Martes,Miércoles,Jueves,Viernes,Sábado,Domingo',
+                'hora' => 'required|date_format:H:i',
                 'nombre' => 'required|string|max:45',
+                'descripcion' => 'nullable|string|max:255',
                 'cupoMax' => 'required|integer|min:1'
             ]);
 
@@ -62,12 +64,35 @@ class ClaseController extends Controller
                 ]);
             }
 
-            \DB::select('EXEC pa_CrearClase ?, ?, ?', [
-                $data['horario'],
+            $result = \DB::select('EXEC pa_CrearClase ?, ?, ?, ?, ?', [
+                $data['diaSemana'],
+                $data['hora'],
                 $data['nombre'],
+                $data['descripcion'] ?? null,
                 $data['cupoMax']
             ]);
 
+            // El procedimiento siempre retorna un resultado con código y mensaje
+            if (!empty($result) && isset($result[0]->codigo)) {
+                $codigo = $result[0]->codigo;
+                $mensaje = $result[0]->mensaje ?? 'Error desconocido';
+                
+                if ($codigo != 200) {
+                    return response()->json([
+                        'code' => $codigo,
+                        'status' => 'error',
+                        'message' => $mensaje
+                    ]);
+                }
+                
+                return response()->json([
+                    'code' => 200,
+                    'status' => 'success',
+                    'message' => $mensaje
+                ]);
+            }
+
+            // Fallback si no hay resultado (no debería pasar)
             return response()->json([
                 'code' => 200,
                 'status' => 'success',
@@ -116,8 +141,10 @@ class ClaseController extends Controller
             $data = $this->cleanData($request->input('data', $request->all()));
 
             $validator = Validator::make($data, [
-                'horario' => 'required|date',
+                'diaSemana' => 'required|string|in:Lunes,Martes,Miércoles,Jueves,Viernes,Sábado,Domingo',
+                'hora' => 'required|date_format:H:i',
                 'nombre' => 'required|string|max:45',
+                'descripcion' => 'nullable|string|max:255',
                 'cupoMax' => 'required|integer|min:1'
             ]);
 
@@ -130,13 +157,36 @@ class ClaseController extends Controller
                 ]);
             }
 
-            \DB::select('EXEC pa_ActualizarClase ?, ?, ?, ?', [
+            $result = \DB::select('EXEC pa_ActualizarClase ?, ?, ?, ?, ?, ?', [
                 $id,
-                $data['horario'],
+                $data['diaSemana'],
+                $data['hora'],
                 $data['nombre'],
+                $data['descripcion'] ?? null,
                 $data['cupoMax']
             ]);
 
+            // El procedimiento siempre retorna un resultado con código y mensaje
+            if (!empty($result) && isset($result[0]->codigo)) {
+                $codigo = $result[0]->codigo;
+                $mensaje = $result[0]->mensaje ?? 'Error desconocido';
+                
+                if ($codigo != 200) {
+                    return response()->json([
+                        'code' => $codigo,
+                        'status' => 'error',
+                        'message' => $mensaje
+                    ]);
+                }
+                
+                return response()->json([
+                    'code' => 200,
+                    'status' => 'success',
+                    'message' => $mensaje
+                ]);
+            }
+
+            // Fallback si no hay resultado (no debería pasar)
             return response()->json([
                 'code' => 200,
                 'status' => 'success',
@@ -155,8 +205,29 @@ class ClaseController extends Controller
     public function destroy($id)
     {
         try {
-            \DB::select('EXEC pa_BorrarClase ?', [$id]);
+            $result = \DB::select('EXEC pa_BorrarClase ?', [$id]);
 
+            // El procedimiento siempre retorna un resultado con código y mensaje
+            if (!empty($result) && isset($result[0]->codigo)) {
+                $codigo = $result[0]->codigo;
+                $mensaje = $result[0]->mensaje ?? 'Error desconocido';
+                
+                if ($codigo != 200) {
+                    return response()->json([
+                        'code' => $codigo,
+                        'status' => 'error',
+                        'message' => $mensaje
+                    ]);
+                }
+                
+                return response()->json([
+                    'code' => 200,
+                    'status' => 'success',
+                    'message' => $mensaje
+                ]);
+            }
+
+            // Fallback si no hay resultado (no debería pasar)
             return response()->json([
                 'code' => 200,
                 'status' => 'success',

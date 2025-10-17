@@ -14,13 +14,15 @@ class Clase extends Model
     public $timestamps = false;
 
     protected $fillable = [
-        'horario',
+        'diaSemana',
+        'hora',
         'nombre',
+        'descripcion',
         'cupoMax',
     ];
 
     protected $casts = [
-        'horario' => 'datetime',
+        'hora' => 'datetime:H:i',
         'cupoMax' => 'integer',
     ];
 
