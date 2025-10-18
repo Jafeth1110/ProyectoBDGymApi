@@ -112,6 +112,23 @@ Route::prefix('v1')->group(function () {
         /* RUTAS MEMBRESIAS */
         Route::get('/membresias', [MembresiaController::class, 'index']);
         Route::post('/membresias', [MembresiaController::class, 'store']);
+        
+        // Rutas para plantillas (admin)
+        Route::post('/membresias/plantillas', [MembresiaController::class, 'createPlantilla']);
+        Route::get('/membresias/plantillas', [MembresiaController::class, 'getPlantillas']);
+        
+        // Rutas para asignar membresías a clientes
+        Route::post('/membresias/asignar', [MembresiaController::class, 'asignarMembresiaCliente']);
+        Route::get('/membresias/cliente/{idCliente}/membresias', [MembresiaController::class, 'getMembresiasCliente']);
+        
+        // Rutas para estadísticas
+        Route::get('/membresias/estadisticas', [MembresiaController::class, 'getEstadisticas']);
+        
+        // Rutas existentes
+        Route::get('/membresias/activas', [MembresiaController::class, 'getActivas']);
+        Route::get('/membresias/vencidas', [MembresiaController::class, 'getVencidas']);
+        Route::post('/membresias/update-estados', [MembresiaController::class, 'updateEstados']);
+        Route::get('/membresias/cliente/{idCliente}', [MembresiaController::class, 'getByCliente']);
         Route::get('/membresias/{id}', [MembresiaController::class, 'show']);
         Route::put('/membresias/{id}', [MembresiaController::class, 'update']);
         Route::delete('/membresias/{id}', [MembresiaController::class, 'destroy']);
