@@ -48,8 +48,11 @@ class MetodoPagoController extends Controller
             $data = $this->cleanData($request->input('data', $request->all()));
 
             $validator = Validator::make($data, [
-                'idCliente' => 'required|integer',
-                'nombre' => 'required|string|max:45'
+                'nombre' => 'required|string|max:45',
+                'descripcion' => 'nullable|string|max:100',
+                'comision' => 'required|numeric|min:0|max:100',
+                'requiereAutorizacion' => 'required|boolean',
+                'estado' => 'required|boolean'
             ]);
 
             if ($validator->fails()) {
@@ -61,11 +64,35 @@ class MetodoPagoController extends Controller
                 ]);
             }
 
-            \DB::select('EXEC pa_CrearMetodoPago ?, ?', [
-                $data['idCliente'],
-                $data['nombre']
+            $result = \DB::select('EXEC pa_CrearMetodoPago ?, ?, ?, ?, ?', [
+                $data['nombre'],
+                $data['descripcion'] ?? null,
+                $data['comision'],
+                $data['requiereAutorizacion'] ? 1 : 0,
+                $data['estado'] ? 1 : 0
             ]);
 
+            // El procedimiento siempre retorna un resultado con código y mensaje
+            if (!empty($result) && isset($result[0]->codigo)) {
+                $codigo = $result[0]->codigo;
+                $mensaje = $result[0]->mensaje ?? 'Error desconocido';
+                
+                if ($codigo != 200) {
+                    return response()->json([
+                        'code' => $codigo,
+                        'status' => 'error',
+                        'message' => $mensaje
+                    ]);
+                }
+                
+                return response()->json([
+                    'code' => 200,
+                    'status' => 'success',
+                    'message' => $mensaje
+                ]);
+            }
+
+            // Fallback si no hay resultado (no debería pasar)
             return response()->json([
                 'code' => 200,
                 'status' => 'success',
@@ -114,8 +141,11 @@ class MetodoPagoController extends Controller
             $data = $this->cleanData($request->input('data', $request->all()));
 
             $validator = Validator::make($data, [
-                'idCliente' => 'required|integer',
-                'nombre' => 'required|string|max:45'
+                'nombre' => 'required|string|max:45',
+                'descripcion' => 'nullable|string|max:100',
+                'comision' => 'required|numeric|min:0|max:100',
+                'requiereAutorizacion' => 'required|boolean',
+                'estado' => 'required|boolean'
             ]);
 
             if ($validator->fails()) {
@@ -127,12 +157,36 @@ class MetodoPagoController extends Controller
                 ]);
             }
 
-            \DB::select('EXEC pa_ActualizarMetodoPago ?, ?, ?', [
+            $result = \DB::select('EXEC pa_ActualizarMetodoPago ?, ?, ?, ?, ?, ?', [
                 $id,
-                $data['idCliente'],
-                $data['nombre']
+                $data['nombre'],
+                $data['descripcion'] ?? null,
+                $data['comision'],
+                $data['requiereAutorizacion'] ? 1 : 0,
+                $data['estado'] ? 1 : 0
             ]);
 
+            // El procedimiento siempre retorna un resultado con código y mensaje
+            if (!empty($result) && isset($result[0]->codigo)) {
+                $codigo = $result[0]->codigo;
+                $mensaje = $result[0]->mensaje ?? 'Error desconocido';
+                
+                if ($codigo != 200) {
+                    return response()->json([
+                        'code' => $codigo,
+                        'status' => 'error',
+                        'message' => $mensaje
+                    ]);
+                }
+                
+                return response()->json([
+                    'code' => 200,
+                    'status' => 'success',
+                    'message' => $mensaje
+                ]);
+            }
+
+            // Fallback si no hay resultado (no debería pasar)
             return response()->json([
                 'code' => 200,
                 'status' => 'success',
@@ -151,8 +205,29 @@ class MetodoPagoController extends Controller
     public function destroy($id)
     {
         try {
-            \DB::select('EXEC pa_BorrarMetodoPago ?', [$id]);
+            $result = \DB::select('EXEC pa_BorrarMetodoPago ?', [$id]);
 
+            // El procedimiento siempre retorna un resultado con código y mensaje
+            if (!empty($result) && isset($result[0]->codigo)) {
+                $codigo = $result[0]->codigo;
+                $mensaje = $result[0]->mensaje ?? 'Error desconocido';
+                
+                if ($codigo != 200) {
+                    return response()->json([
+                        'code' => $codigo,
+                        'status' => 'error',
+                        'message' => $mensaje
+                    ]);
+                }
+                
+                return response()->json([
+                    'code' => 200,
+                    'status' => 'success',
+                    'message' => $mensaje
+                ]);
+            }
+
+            // Fallback si no hay resultado (no debería pasar)
             return response()->json([
                 'code' => 200,
                 'status' => 'success',

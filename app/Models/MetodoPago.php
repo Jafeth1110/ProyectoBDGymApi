@@ -14,23 +14,40 @@ class MetodoPago extends Model
     public $timestamps = false;
 
     protected $fillable = [
-        'idCliente',
         'nombre',
+        'descripcion',
+        'comision',
+        'requiereAutorizacion',
+        'estado',
     ];
 
     protected $casts = [
-        'idCliente' => 'integer',
+        'comision' => 'decimal:2',
+        'requiereAutorizacion' => 'boolean',
+        'estado' => 'boolean',
     ];
 
-    // Relación con cliente
-    public function cliente()
+    // Reglas de validación
+    public static function rules($id = null)
     {
-        return $this->belongsTo(Cliente::class, 'idCliente');
+        return [
+            'nombre' => 'required|string|max:45|unique:metodopago,nombre' . ($id ? ",$id,idMetodoPago" : ''),
+            'descripcion' => 'nullable|string|max:100',
+            'comision' => 'required|numeric|min:0|max:100',
+            'requiereAutorizacion' => 'required|boolean',
+            'estado' => 'required|boolean',
+        ];
     }
 
     // Relación con pagos
     public function pagos()
     {
         return $this->hasMany(Pago::class, 'idMetodoPago');
+    }
+
+    // Scope para métodos activos
+    public function scopeActivos($query)
+    {
+        return $query->where('estado', 1);
     }
 }
