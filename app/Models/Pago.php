@@ -18,6 +18,9 @@ class Pago extends Model
         'idMetodoPago',
         'fechaPago',
         'monto',
+        'tipoPago',
+        'idDetalleMantenimiento',
+        'descripcion',
     ];
 
     protected $casts = [
@@ -25,6 +28,8 @@ class Pago extends Model
         'monto' => 'decimal:2',
         'idMembresia' => 'integer',
         'idMetodoPago' => 'integer',
+        'idDetalleMantenimiento' => 'integer',
+        'tipoPago' => 'string',
     ];
 
     // Relación con membresía
@@ -39,9 +44,39 @@ class Pago extends Model
         return $this->belongsTo(MetodoPago::class, 'idMetodoPago');
     }
 
+    // Relación con detalle de mantenimiento
+    public function detalleMantenimiento()
+    {
+        return $this->belongsTo(DetalleMantenimiento::class, 'idDetalleMantenimiento');
+    }
+
     // Accessor para formato de monto
     public function getMontoFormateadoAttribute()
     {
         return '₡' . number_format($this->monto, 2);
+    }
+
+    // Método para verificar si es pago de membresía
+    public function esPagoMembresia()
+    {
+        return $this->tipoPago === 'membresia';
+    }
+
+    // Método para verificar si es pago de mantenimiento
+    public function esPagoMantenimiento()
+    {
+        return $this->tipoPago === 'mantenimiento';
+    }
+
+    // Scope para pagos de membresía
+    public function scopeMembresias($query)
+    {
+        return $query->where('tipoPago', 'membresia');
+    }
+
+    // Scope para pagos de mantenimiento
+    public function scopeMantenimientos($query)
+    {
+        return $query->where('tipoPago', 'mantenimiento');
     }
 }
