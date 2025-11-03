@@ -48,10 +48,10 @@ class InscripcionClaseController extends Controller
             $data = $this->cleanData($request->input('data', $request->all()));
 
             $validator = Validator::make($data, [
-                'idCliente' => 'required|integer',
-                'idEntrenador' => 'required|integer',
-                'idClase' => 'required|integer',
-                'fechaInscripcion' => 'required|date'
+                'idCliente' => 'required|integer|exists:cliente,idCliente',
+                'idEntrenador' => 'required|integer|exists:entrenador,idEntrenador',
+                'idClase' => 'required|integer|exists:clase,idClase',
+                'fechaInscripcion' => 'required|date|before_or_equal:today'
             ]);
 
             if ($validator->fails()) {
@@ -60,7 +60,31 @@ class InscripcionClaseController extends Controller
                     'status' => 'error',
                     'message' => 'Datos de validación incorrectos',
                     'errors' => $validator->errors()
-                ]);
+                ], 400);
+            }
+
+            // Validación adicional: verificar cupo disponible
+            $clase = \DB::selectOne('SELECT cupoMax FROM clase WHERE idClase = ?', [$data['idClase']]);
+            $inscritos = \DB::selectOne('SELECT COUNT(*) as total FROM inscripcionclase WHERE idClase = ?', [$data['idClase']]);
+            
+            if ($inscritos->total >= $clase->cupoMax) {
+                return response()->json([
+                    'code' => 400,
+                    'status' => 'error',
+                    'message' => 'La clase ya alcanzó su cupo máximo'
+                ], 400);
+            }
+
+            // Validación adicional: verificar que el cliente no esté ya inscrito
+            $yaInscrito = \DB::selectOne('SELECT COUNT(*) as total FROM inscripcionclase WHERE idCliente = ? AND idClase = ?', 
+                [$data['idCliente'], $data['idClase']]);
+            
+            if ($yaInscrito->total > 0) {
+                return response()->json([
+                    'code' => 400,
+                    'status' => 'error',
+                    'message' => 'El cliente ya está inscrito en esta clase'
+                ], 400);
             }
 
             \DB::select('EXEC pa_CrearInscripcionClase ?, ?, ?, ?', [
@@ -81,7 +105,7 @@ class InscripcionClaseController extends Controller
                 'code' => 500,
                 'status' => 'error',
                 'message' => 'Error al crear la inscripción: ' . $e->getMessage()
-            ]);
+            ], 500);
         }
     }
 
@@ -115,13 +139,24 @@ class InscripcionClaseController extends Controller
     public function update(Request $request, $id)
     {
         try {
+            // Verificar que la inscripción existe
+            $inscripcionExiste = \DB::selectOne('SELECT COUNT(*) as total FROM inscripcionclase WHERE idInscripcionClase = ?', [$id]);
+            
+            if ($inscripcionExiste->total == 0) {
+                return response()->json([
+                    'code' => 404,
+                    'status' => 'error',
+                    'message' => 'La inscripción no existe'
+                ], 404);
+            }
+
             $data = $this->cleanData($request->input('data', $request->all()));
 
             $validator = Validator::make($data, [
-                'idCliente' => 'required|integer',
-                'idEntrenador' => 'required|integer',
-                'idClase' => 'required|integer',
-                'fechaInscripcion' => 'required|date'
+                'idCliente' => 'required|integer|exists:cliente,idCliente',
+                'idEntrenador' => 'required|integer|exists:entrenador,idEntrenador',
+                'idClase' => 'required|integer|exists:clase,idClase',
+                'fechaInscripcion' => 'required|date|before_or_equal:today'
             ]);
 
             if ($validator->fails()) {
@@ -130,10 +165,10 @@ class InscripcionClaseController extends Controller
                     'status' => 'error',
                     'message' => 'Datos de validación incorrectos',
                     'errors' => $validator->errors()
-                ]);
+                ], 400);
             }
 
-            \DB::select('EXEC pa_ActualizarInscripcionClase ?, ?, ?, ?, ?', [
+            \DB::statement('EXEC pa_ActualizarInscripcionClase ?, ?, ?, ?, ?', [
                 $id,
                 $data['idCliente'],
                 $data['idEntrenador'],
@@ -152,14 +187,25 @@ class InscripcionClaseController extends Controller
                 'code' => 500,
                 'status' => 'error',
                 'message' => 'Error al actualizar la inscripción: ' . $e->getMessage()
-            ]);
+            ], 500);
         }
     }
 
     public function destroy($id)
     {
         try {
-            \DB::select('EXEC pa_BorrarInscripcionClase ?', [$id]);
+            // Verificar que la inscripción existe antes de eliminar
+            $inscripcionExiste = \DB::selectOne('SELECT COUNT(*) as total FROM inscripcionclase WHERE idInscripcionClase = ?', [$id]);
+            
+            if ($inscripcionExiste->total == 0) {
+                return response()->json([
+                    'code' => 404,
+                    'status' => 'error',
+                    'message' => 'La inscripción no existe'
+                ], 404);
+            }
+
+            \DB::statement('EXEC pa_BorrarInscripcionClase ?', [$id]);
 
             return response()->json([
                 'code' => 200,
@@ -172,7 +218,7 @@ class InscripcionClaseController extends Controller
                 'code' => 500,
                 'status' => 'error',
                 'message' => 'Error al eliminar la inscripción: ' . $e->getMessage()
-            ]);
+            ], 500);
         }
     }
 }

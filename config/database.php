@@ -103,11 +103,19 @@ return [
                 'host' => env('DB_HOST', 'localhost'),
                 'port' => env('DB_PORT', '1433'),
                 'database' => env('DB_DATABASE', 'dbgym'),
-                'username' => env('DB_USERNAME', ''),
-                'password' => env('DB_PASSWORD', ''),
+                // Si DB_USERNAME/DB_PASSWORD están vacíos en .env, conviértelos a null para usar Autenticación de Windows (Integrated Security)
+                'username' => env('DB_USERNAME') ?: null,
+                'password' => env('DB_PASSWORD') ?: null,
                 'charset' => 'utf8',
                 'prefix' => '',
                 'prefix_indexes' => true,
+        // Opciones para ODBC Driver 17/18 y servidores con cifrado obligatorio
+        'options' => [
+            // En SQL Server 2022 y/o ODBC Driver 18 el cifrado es obligatorio por defecto
+            'Encrypt' => env('DB_ENCRYPT', 'yes'),
+            // Si no tienes un certificado confiable, habilita esta opción
+            'TrustServerCertificate' => env('DB_TRUST_SERVER_CERTIFICATE', true),
+        ],
 
         ],
 
