@@ -24,20 +24,26 @@ class Membresia extends Model
         'fechaInicio',
         'estado',
         'esPlantilla',
+        'pagada',
+        'fechaUltimoPago',
+        'requierePago',
     ];
 
     protected $casts = [
         'fechaVenc' => 'date',
         'fechaInicio' => 'date',
         'fechaCreacion' => 'datetime',
+        'fechaUltimoPago' => 'datetime',
         'idCliente' => 'integer',
         'precio' => 'decimal:2',
         'descuento' => 'decimal:2',
-        'estado' => 'integer', // Cambiar a integer para compatibilidad con SQL Server
-        'esPlantilla' => 'integer', // Cambiar a integer para compatibilidad con SQL Server
+        'estado' => 'integer',
+        'esPlantilla' => 'integer',
+        'pagada' => 'boolean',
+        'requierePago' => 'boolean',
     ];
 
-    protected $appends = ['precio_formateado', 'precio_final', 'estado_texto'];
+    protected $appends = ['precio_formateado', 'precio_final', 'estado_texto', 'estado_pago'];
 
     // Reglas de validación para plantillas
     public static function rulesPlantilla()
@@ -229,5 +235,43 @@ class Membresia extends Model
     public function getTipoTextoAttribute()
     {
         return $this->esPlantilla ? 'Plantilla' : 'Membresía Cliente';
+    }
+
+    // Método para verificar si está pagada
+    public function isPagada()
+    {
+        return $this->pagada === true || $this->pagada === 1;
+    }
+
+    // Método para obtener el estado de pago
+    public function getEstadoPagoAttribute()
+    {
+        if ($this->esPlantilla) {
+            return 'No aplica';
+        }
+        
+        if ($this->isPagada()) {
+            return 'Pagada';
+        }
+        
+        return 'Pendiente de pago';
+    }
+
+    // Scope para membresías pagadas
+    public function scopePagadas($query)
+    {
+        return $query->where('pagada', 1);
+    }
+
+    // Scope para membresías pendientes de pago
+    public function scopePendientesPago($query)
+    {
+        return $query->where('pagada', 0)->where('esPlantilla', 0);
+    }
+
+    // Método para verificar si requiere pago
+    public function requierePago()
+    {
+        return $this->requierePago === true || $this->requierePago === 1;
     }
 }

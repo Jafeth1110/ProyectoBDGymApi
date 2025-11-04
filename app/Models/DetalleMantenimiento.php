@@ -21,6 +21,8 @@ class DetalleMantenimiento extends Model
         'idEquipo',
         'idMantenimiento',
         'fechaMantenimiento',
+        'pagado',
+        'fechaPago',
     ];
 
     protected $casts = [
@@ -28,7 +30,11 @@ class DetalleMantenimiento extends Model
         'idEquipo' => 'integer',
         'idMantenimiento' => 'integer',
         'fechaMantenimiento' => 'date',
+        'pagado' => 'boolean',
+        'fechaPago' => 'datetime',
     ];
+
+    protected $appends = ['estado_pago'];
 
     // Relaciones
     public function admin()
@@ -44,5 +50,35 @@ class DetalleMantenimiento extends Model
     public function mantenimiento()
     {
         return $this->belongsTo(Mantenimiento::class, 'idMantenimiento', 'idMantenimiento');
+    }
+
+    // Relación con pagos
+    public function pagos()
+    {
+        return $this->hasMany(Pago::class, 'idDetalleMantenimiento');
+    }
+
+    // Método para verificar si está pagado
+    public function isPagado()
+    {
+        return $this->pagado === true || $this->pagado === 1;
+    }
+
+    // Método para obtener el estado de pago
+    public function getEstadoPagoAttribute()
+    {
+        return $this->isPagado() ? 'Pagado' : 'Pendiente de pago';
+    }
+
+    // Scope para mantenimientos pagados
+    public function scopePagados($query)
+    {
+        return $query->where('pagado', 1);
+    }
+
+    // Scope para mantenimientos pendientes de pago
+    public function scopePendientesPago($query)
+    {
+        return $query->where('pagado', 0);
     }
 }
