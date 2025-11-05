@@ -68,7 +68,7 @@ class PagoController extends Controller
 
             // Validaciones base
             $rules = [
-                'idMetodoPago' => 'required|integer',
+                'idMetodoPago' => 'required|integer|min:1',
                 'fechaPago' => 'required|date',
                 'monto' => 'required|numeric|min:0',
                 'tipoPago' => 'required|in:membresia,mantenimiento',
@@ -78,10 +78,10 @@ class PagoController extends Controller
             // Validaciones condicionales según tipo de pago
             if (isset($data['tipoPago'])) {
                 if ($data['tipoPago'] === 'membresia') {
-                    $rules['idMembresia'] = 'required|integer';
+                    $rules['idMembresia'] = 'required|integer|min:1';
                     $rules['idDetalleMantenimiento'] = 'nullable';
                 } elseif ($data['tipoPago'] === 'mantenimiento') {
-                    $rules['idDetalleMantenimiento'] = 'required|integer';
+                    $rules['idDetalleMantenimiento'] = 'required|integer|min:1';
                     $rules['idMembresia'] = 'nullable';
                 }
             }
@@ -95,6 +95,21 @@ class PagoController extends Controller
                     'message' => 'Datos de validación incorrectos',
                     'errors' => $validator->errors()
                 ]);
+            }
+
+            // Normalización adicional para cumplir con CK_pago_relacion y FKs
+            if (isset($data['idMembresia']) && (int)$data['idMembresia'] === 0) {
+                $data['idMembresia'] = null;
+            }
+            if (isset($data['idDetalleMantenimiento']) && (int)$data['idDetalleMantenimiento'] === 0) {
+                $data['idDetalleMantenimiento'] = null;
+            }
+            if (isset($data['tipoPago'])) {
+                if ($data['tipoPago'] === 'membresia') {
+                    $data['idDetalleMantenimiento'] = null;
+                } elseif ($data['tipoPago'] === 'mantenimiento') {
+                    $data['idMembresia'] = null;
+                }
             }
 
             $result = \DB::select('EXEC sp_AuditCrearPago ?, ?, ?, ?, ?, ?, ?, ?, ?', [
@@ -185,7 +200,7 @@ class PagoController extends Controller
             }
 
             $rules = [
-                'idMetodoPago' => 'required|integer',
+                'idMetodoPago' => 'required|integer|min:1',
                 'fechaPago' => 'required|date',
                 'monto' => 'required|numeric|min:0',
                 'tipoPago' => 'nullable|in:membresia,mantenimiento',
@@ -194,9 +209,9 @@ class PagoController extends Controller
 
             if (isset($data['tipoPago'])) {
                 if ($data['tipoPago'] === 'membresia') {
-                    $rules['idMembresia'] = 'required|integer';
+                    $rules['idMembresia'] = 'required|integer|min:1';
                 } elseif ($data['tipoPago'] === 'mantenimiento') {
-                    $rules['idDetalleMantenimiento'] = 'required|integer';
+                    $rules['idDetalleMantenimiento'] = 'required|integer|min:1';
                 }
             }
 
@@ -209,6 +224,21 @@ class PagoController extends Controller
                     'message' => 'Datos de validación incorrectos',
                     'errors' => $validator->errors()
                 ]);
+            }
+
+            // Normalización adicional para cumplir con CK_pago_relacion y FKs
+            if (isset($data['idMembresia']) && (int)$data['idMembresia'] === 0) {
+                $data['idMembresia'] = null;
+            }
+            if (isset($data['idDetalleMantenimiento']) && (int)$data['idDetalleMantenimiento'] === 0) {
+                $data['idDetalleMantenimiento'] = null;
+            }
+            if (isset($data['tipoPago'])) {
+                if ($data['tipoPago'] === 'membresia') {
+                    $data['idDetalleMantenimiento'] = null;
+                } elseif ($data['tipoPago'] === 'mantenimiento') {
+                    $data['idMembresia'] = null;
+                }
             }
 
             $result = \DB::select('EXEC sp_AuditActualizarPago ?, ?, ?, ?, ?, ?, ?, ?, ?, ?', [
