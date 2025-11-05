@@ -14,6 +14,16 @@ use App\Models\Telefono;
 
 class UserController extends Controller
 {
+    private function getActorId(Request $request)
+    {
+        $token = $request->bearerToken();
+        $jwt = new \App\Helpers\JwtAuth();
+        $decoded = $jwt->checkToken($token, true);
+        if ($decoded && is_object($decoded) && isset($decoded->sub)) {
+            return (int)$decoded->sub;
+        }
+        return null;
+    }
     /**
      * Función auxiliar para limpiar datos recursivamente
      */
@@ -60,6 +70,7 @@ class UserController extends Controller
 
     public function store(Request $request) {
         $data = $this->cleanData($request->input('data', []));
+        $actorId = $this->getActorId($request) ?? 0; // permitir registro público, auditar como 0
         
         $validator = Validator::make($data, [
             'nombre' => 'required|string|max:45',
@@ -82,21 +93,43 @@ class UserController extends Controller
         }
 
         try {
-            $telefonosJson = isset($data['telefonos']) ? json_encode($data['telefonos']) : json_encode([]);
-
-            \DB::statement('EXEC pa_CrearUsuarioConTelefonos ?,?,?,?,?,?,?', [
+            $result = \DB::select('EXEC sp_AuditCrearUsuario ?,?,?,?,?,?,?,?', [
                 $data['nombre'],
                 $data['apellido'],
                 $data['cedula'],
                 strtolower($data['email']),
                 bcrypt($data['password']),
                 $data['idRol'],
-                $telefonosJson
+                $actorId,
+                $request->ip()
             ]);
+
+            if (empty($result) || !isset($result[0]->codigo) || (int)$result[0]->codigo !== 200) {
+                return response()->json([
+                    'status' => 500,
+                    'message' => $result[0]->mensaje ?? 'Error al crear usuario'
+                ], 500);
+            }
+
+            $newUserId = $result[0]->idUsuario ?? null;
+
+            if (!empty($data['telefonos']) && is_array($data['telefonos']) && $newUserId) {
+                foreach ($data['telefonos'] as $tel) {
+                    if (!empty($tel['telefono']) && !empty($tel['tipoTel'])) {
+                        \DB::statement('EXEC pa_CrearTelefono ?,?,?,?', [
+                            $newUserId,
+                            $tel['telefono'],
+                            $tel['tipoTel'],
+                            $data['idRol']
+                        ]);
+                    }
+                }
+            }
 
             return response()->json([
                 'status' => 201,
-                'message' => 'Usuario creado exitosamente con teléfonos'
+                'message' => 'Usuario creado exitosamente',
+                'idUsuario' => $newUserId
             ], 201);
 
         } catch (\Exception $e) {
@@ -139,6 +172,15 @@ class UserController extends Controller
     }
 
     public function destroy($email) {
+        // autenticación
+        $request = request();
+        $actorId = $this->getActorId($request);
+        if (!$actorId) {
+            return response()->json([
+                'status' => 401,
+                'message' => 'No autenticado'
+            ], 401);
+        }
         if (!$email) {
             return response()->json([
                 'status' => 400,
@@ -149,7 +191,17 @@ class UserController extends Controller
         if ($user && count($user) > 0) {
             $idUsuario = $user[0]->idUsuario;
             try {
-                \DB::statement('EXEC pa_BorrarUsuario ?', [$idUsuario]);
+                $result = \DB::select('EXEC sp_AuditEliminarUsuario ?,?,?', [
+                    $idUsuario,
+                    $actorId,
+                    $request->ip()
+                ]);
+                if (empty($result) || !isset($result[0]->codigo) || (int)$result[0]->codigo !== 200) {
+                    return response()->json([
+                        'status' => 500,
+                        'message' => $result[0]->mensaje ?? 'Error al eliminar usuario'
+                    ], 500);
+                }
                 $response = [
                     'status' => 200,
                     'message' => 'Usuario eliminado exitosamente :)'
@@ -172,6 +224,13 @@ class UserController extends Controller
 
     public function update(Request $request, $email)
         {
+            $actorId = $this->getActorId($request);
+            if (!$actorId) {
+                return response()->json([
+                    'status' => 401,
+                    'message' => 'No autenticado'
+                ], 401);
+            }
             // Buscar usuario por email
             $user = \DB::select('EXEC pa_ObtenerUsuarioPorEmail ?', [$email]);
             if (!$user || count($user) === 0) {
@@ -230,14 +289,12 @@ class UserController extends Controller
                 $emailActualizado = $data['email'] ?? $user[0]->email;
                 $password = isset($data['password']) && !empty($data['password'])
                     ? bcrypt($data['password'])
-                    : null; // null -> mantiene el actual
+                    : $user[0]->password; // usa el actual si no viene nuevo
                 $idRol = $data['idRol'] ?? $user[0]->idRol;
-                $telefonosJson = isset($data['telefonos'])
-                    ? json_encode($data['telefonos'])
-                    : json_encode([]);
+                $telefonosJson = isset($data['telefonos']) ? json_encode($data['telefonos']) : null;
 
-                // Ejecutar procedimiento para actualizar usuario con teléfonos
-                \DB::statement('EXEC pa_ActualizarUsuarioConTelefonos ?,?,?,?,?,?,?,?', [
+                // Actualizar usuario con auditoría
+                $resAudit = \DB::select('EXEC sp_AuditActualizarUsuario ?,?,?,?,?,?,?,?,?', [
                     $idUsuario,
                     $nombre,
                     $apellido,
@@ -245,8 +302,30 @@ class UserController extends Controller
                     $emailActualizado,
                     $password,
                     $idRol,
-                    $telefonosJson
+                    $actorId,
+                    $request->ip()
                 ]);
+
+                if (empty($resAudit) || !isset($resAudit[0]->codigo) || (int)$resAudit[0]->codigo !== 200) {
+                    return response()->json([
+                        'status' => 500,
+                        'message' => $resAudit[0]->mensaje ?? 'Error al actualizar usuario'
+                    ], 500);
+                }
+
+                // Si vienen teléfonos, actualizar usando PA existente
+                if ($telefonosJson !== null) {
+                    \DB::statement('EXEC pa_ActualizarUsuarioConTelefonos ?,?,?,?,?,?,?,?', [
+                        $idUsuario,
+                        $nombre,
+                        $apellido,
+                        $cedula,
+                        $emailActualizado,
+                        null, // no cambiar password aquí
+                        $idRol,
+                        $telefonosJson
+                    ]);
+                }
 
                 // Obtener usuario actualizado
                 $userUpdated = \DB::select('EXEC pa_ObtenerUsuarioID ?', [$idUsuario]);

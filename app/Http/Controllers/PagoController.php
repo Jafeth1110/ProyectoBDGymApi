@@ -8,6 +8,16 @@ use App\Models\Pago;
 
 class PagoController extends Controller
 {
+    private function getActorId(Request $request)
+    {
+        $token = $request->bearerToken();
+        $jwt = new \App\Helpers\JwtAuth();
+        $decoded = $jwt->checkToken($token, true);
+        if ($decoded && is_object($decoded) && isset($decoded->sub)) {
+            return (int)$decoded->sub;
+        }
+        return null;
+    }
     /**
      * Función auxiliar para limpiar datos recursivamente
      */
@@ -47,6 +57,14 @@ class PagoController extends Controller
     {
         try {
             $data = $this->cleanData($request->input('data', $request->all()));
+            $actorId = $this->getActorId($request);
+            if (!$actorId) {
+                return response()->json([
+                    'code' => 401,
+                    'status' => 'error',
+                    'message' => 'No autenticado'
+                ], 401);
+            }
 
             // Validaciones base
             $rules = [
@@ -79,14 +97,16 @@ class PagoController extends Controller
                 ]);
             }
 
-            $result = \DB::select('EXEC pa_CrearPago ?, ?, ?, ?, ?, ?, ?', [
+            $result = \DB::select('EXEC sp_AuditCrearPago ?, ?, ?, ?, ?, ?, ?, ?, ?', [
                 $data['idMembresia'] ?? null,
                 $data['idMetodoPago'],
                 $data['fechaPago'],
                 $data['monto'],
                 $data['tipoPago'],
                 $data['idDetalleMantenimiento'] ?? null,
-                $data['descripcion'] ?? null
+                $data['descripcion'] ?? null,
+                $actorId,
+                $request->ip()
             ]);
 
             // El procedimiento retorna código y mensaje
@@ -155,13 +175,32 @@ class PagoController extends Controller
     {
         try {
             $data = $this->cleanData($request->input('data', $request->all()));
+            $actorId = $this->getActorId($request);
+            if (!$actorId) {
+                return response()->json([
+                    'code' => 401,
+                    'status' => 'error',
+                    'message' => 'No autenticado'
+                ], 401);
+            }
 
-            $validator = Validator::make($data, [
-                'idMembresia' => 'required|integer',
+            $rules = [
                 'idMetodoPago' => 'required|integer',
                 'fechaPago' => 'required|date',
-                'monto' => 'required|numeric|min:0'
-            ]);
+                'monto' => 'required|numeric|min:0',
+                'tipoPago' => 'nullable|in:membresia,mantenimiento',
+                'descripcion' => 'nullable|string|max:255'
+            ];
+
+            if (isset($data['tipoPago'])) {
+                if ($data['tipoPago'] === 'membresia') {
+                    $rules['idMembresia'] = 'required|integer';
+                } elseif ($data['tipoPago'] === 'mantenimiento') {
+                    $rules['idDetalleMantenimiento'] = 'required|integer';
+                }
+            }
+
+            $validator = Validator::make($data, $rules);
 
             if ($validator->fails()) {
                 return response()->json([
@@ -172,12 +211,17 @@ class PagoController extends Controller
                 ]);
             }
 
-            $result = \DB::select('EXEC pa_ActualizarPago ?, ?, ?, ?, ?', [
+            $result = \DB::select('EXEC sp_AuditActualizarPago ?, ?, ?, ?, ?, ?, ?, ?, ?, ?', [
                 $id,
-                $data['idMembresia'],
+                $data['idMembresia'] ?? null,
                 $data['idMetodoPago'],
                 $data['fechaPago'],
-                $data['monto']
+                $data['monto'],
+                $data['tipoPago'] ?? null,
+                $data['idDetalleMantenimiento'] ?? null,
+                $data['descripcion'] ?? null,
+                $actorId,
+                $request->ip()
             ]);
 
             // El procedimiento retorna código y mensaje
@@ -218,7 +262,21 @@ class PagoController extends Controller
     public function destroy($id)
     {
         try {
-            $result = \DB::select('EXEC pa_BorrarPago ?', [$id]);
+            $request = request();
+            $actorId = $this->getActorId($request);
+            if (!$actorId) {
+                return response()->json([
+                    'code' => 401,
+                    'status' => 'error',
+                    'message' => 'No autenticado'
+                ], 401);
+            }
+
+            $result = \DB::select('EXEC sp_AuditEliminarPago ?, ?, ?', [
+                $id,
+                $actorId,
+                $request->ip()
+            ]);
 
             // El procedimiento retorna código y mensaje
             if (!empty($result) && isset($result[0]->codigo)) {
