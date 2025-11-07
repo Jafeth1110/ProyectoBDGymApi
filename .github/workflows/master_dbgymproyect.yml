@@ -1,9 +1,14 @@
-name: Build and deploy Laravel app to Azure Web App
+name: Deploy Laravel to Azure App Service
 
 on:
   push:
     branches:
       - master
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
 
 jobs:
   build-and-deploy:
@@ -11,33 +16,74 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.3'
-          extensions: mbstring, bcmath, intl, xml, curl, gd, pdo_sqlsrv, sqlsrv
-          ini-values: post_max_size=256M, upload_max_filesize=256M
+          php-version: '8.2'
+          extensions: mbstring, bcmath, intl, pdo_mysql, xml, ctype, fileinfo, tokenizer, json, curl, openssl, zip
+          coverage: none
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v3
+        with:
+          path: vendor
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-composer-
 
       - name: Install Composer dependencies
-        run: composer install --no-interaction --prefer-dist --optimize-autoloader
+        run: composer install --no-dev --optimize-autoloader --no-interaction
 
-      - name: Copy .env file
+      - name: Create .env file
         run: |
           cp .env.example .env
-          php artisan key:generate
+          echo "APP_ENV=production" >> .env
+          echo "APP_DEBUG=false" >> .env
+          echo "APP_KEY=" >> .env
 
-      - name: Run Laravel build steps
+      - name: Generate application key
+        run: php artisan key:generate
+
+      - name: Set up Node.js (if needed for frontend assets)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install npm dependencies and build assets
         run: |
-          php artisan config:cache
-          php artisan route:cache
-          php artisan view:cache
+          if [ -f package.json ]; then
+            npm ci
+            npm run build
+          fi
+
+      - name: Create deployment package
+        run: |
+          # Remove development files and directories
+          rm -rf node_modules
+          rm -rf tests
+          rm -rf .git
+          rm -f .env.example
+          rm -f phpunit.xml
+          rm -f package.json
+          rm -f package-lock.json
+          rm -f vite.config.js
+          
+          # Create zip file for deployment
+          zip -r deployment.zip . -x "*.git*" "node_modules/*" "tests/*"
+
+      - name: Login to Azure
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Deploy to Azure Web App
-        uses: azure/webapps-deploy@v2
+        uses: azure/webapps-deploy@v3
         with:
-          app-name: 'dbgymproyect' # tu nombre exacto del App Service
+          app-name: 'dbgymproyect'
           slot-name: 'production'
-          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE }}
-          package: .
+          package: deployment.zip
