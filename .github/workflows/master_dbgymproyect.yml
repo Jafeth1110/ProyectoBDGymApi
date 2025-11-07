@@ -22,7 +22,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'
-          extensions: mbstring, bcmath, intl, pdo_mysql, xml, ctype, fileinfo, tokenizer, json, curl, openssl, zip
+          extensions: mbstring, bcmath, intl, pdo_sqlsrv, sqlsrv, xml, ctype, fileinfo, tokenizer, json, curl, openssl, zip
           coverage: none
 
       - name: Cache Composer dependencies
@@ -39,12 +39,18 @@ jobs:
       - name: Create .env file
         run: |
           cp .env.example .env
-          echo "APP_ENV=production" >> .env
-          echo "APP_DEBUG=false" >> .env
-          echo "APP_KEY=" >> .env
+          sed -i 's/APP_ENV=.*/APP_ENV=production/' .env
+          sed -i 's/APP_DEBUG=.*/APP_DEBUG=false/' .env
+          sed -i 's|APP_URL=.*|APP_URL=https://dbgymproyect.azurewebsites.net|' .env
 
       - name: Generate application key
         run: php artisan key:generate
+
+      - name: Cache Laravel configuration
+        run: |
+          php artisan config:cache
+          php artisan route:cache
+          php artisan view:cache
 
       - name: Set up Node.js (if needed for frontend assets)
         uses: actions/setup-node@v4
@@ -59,6 +65,41 @@ jobs:
             npm run build
           fi
 
+      - name: Create web.config for Azure
+        run: |
+          cat > public/web.config << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <configuration>
+            <system.webServer>
+              <defaultDocument>
+                <files>
+                  <clear />
+                  <add value="index.php" />
+                </files>
+              </defaultDocument>
+              <rewrite>
+                <rules>
+                  <rule name="Imported Rule 1" stopProcessing="true">
+                    <match url="^(.*)/$" ignoreCase="false" />
+                    <conditions>
+                      <add input="{REQUEST_FILENAME}" matchType="IsDirectory" ignoreCase="false" negate="true" />
+                    </conditions>
+                    <action type="Redirect" redirectType="Permanent" url="/{R:1}" />
+                  </rule>
+                  <rule name="Imported Rule 2" stopProcessing="true">
+                    <match url="^" ignoreCase="false" />
+                    <conditions>
+                      <add input="{REQUEST_FILENAME}" matchType="IsDirectory" ignoreCase="false" negate="true" />
+                      <add input="{REQUEST_FILENAME}" matchType="IsFile" ignoreCase="false" negate="true" />
+                    </conditions>
+                    <action type="Rewrite" url="index.php" />
+                  </rule>
+                </rules>
+              </rewrite>
+            </system.webServer>
+          </configuration>
+          EOF
+
       - name: Create deployment package
         run: |
           # Remove development files and directories
@@ -70,12 +111,14 @@ jobs:
           rm -f package.json
           rm -f package-lock.json
           rm -f vite.config.js
+          rm -f azure-setup-commands.txt
+          rm -f deployment.config.php
           
           # Create zip file for deployment
-          zip -r deployment.zip . -x "*.git*" "node_modules/*" "tests/*"
+          zip -r deployment.zip . -x "*.git*" "node_modules/*" "tests/*" "*.env.example"
 
       - name: Login to Azure
-        uses: azure/login@v1
+        uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
@@ -85,5 +128,4 @@ jobs:
         uses: azure/webapps-deploy@v3
         with:
           app-name: 'dbgymproyect'
-          slot-name: 'production'
           package: deployment.zip
