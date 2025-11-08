@@ -25,13 +25,26 @@ fi
 
 # Copiar configuración de nginx si existe
 if [ -f /home/site/wwwroot/default ]; then
-    echo "Copiando configuración nginx personalizada..."
-    cp /home/site/wwwroot/default /etc/nginx/sites-available/default 2>/dev/null || true
-    cp /home/site/wwwroot/default /etc/nginx/sites-enabled/default 2>/dev/null || true
+    echo "===== NGINX SETUP ====="
+    echo "Archivo default encontrado. Contenido:"
+    cat /home/site/wwwroot/default | head -40
     
-    # Recargar nginx para aplicar cambios
-    nginx -t 2>/dev/null && nginx -s reload 2>/dev/null || true
-    echo "Configuración nginx aplicada"
+    echo -e "\nCopiando a /etc/nginx/sites-available..."
+    cp -v /home/site/wwwroot/default /etc/nginx/sites-available/default
+    
+    echo "Copiando a /etc/nginx/sites-enabled..."
+    cp -v /home/site/wwwroot/default /etc/nginx/sites-enabled/default
+    
+    echo -e "\nProbando configuración nginx..."
+    nginx -t
+    
+    echo -e "\nRecargando nginx..."
+    nginx -s reload || echo "WARNING: No se pudo recargar nginx"
+    
+    echo -e "\nContenido ACTUAL de /etc/nginx/sites-available/default:"
+    cat /etc/nginx/sites-available/default | head -40
+else
+    echo "WARNING: Archivo default NO encontrado"
 fi
 
 echo "Configuración completada. Laravel listo para servir."
