@@ -7,6 +7,9 @@
  * @author   Taylor Otwell <taylor@laravel.com>
  */
 
-// Redirect all requests to the public folder
-header('Location: /public/index.php');
-exit;
+// Forward all requests to public/index.php
+$_SERVER['SCRIPT_NAME'] = '/public/index.php';
+$_SERVER['SCRIPT_FILENAME'] = __DIR__ . '/public/index.php';
+chdir(__DIR__ . '/public');
+
+require __DIR__ . '/public/index.php';
