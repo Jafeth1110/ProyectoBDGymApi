@@ -1,8 +1,15 @@
 #!/bin/bash
+set -e  # Exit on error
 
-echo "Iniciando configuración de Laravel en Azure..."
+echo "========================================="
+echo "INICIANDO CONFIGURACION LARAVEL EN AZURE"
+echo "========================================="
+echo "Directorio actual: $(pwd)"
+echo "Usuario: $(whoami)"
+echo "Fecha: $(date)"
 
 # Asegurar permisos correctos
+echo "Configurando permisos..."
 chmod -R 775 /home/site/wwwroot/storage 2>/dev/null || true
 chmod -R 775 /home/site/wwwroot/bootstrap/cache 2>/dev/null || true
 
@@ -45,6 +52,36 @@ if [ -f /home/site/wwwroot/default ]; then
     cat /etc/nginx/sites-available/default | head -40
 else
     echo "WARNING: Archivo default NO encontrado"
+    echo "Creando configuración nginx on-the-fly..."
+    
+    cat > /etc/nginx/sites-available/default << 'NGINXCONF'
+server {
+    listen 8080;
+    listen [::]:8080;
+    root /home/site/wwwroot;
+    index index.php index.html;
+    server_name _;
+
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location ~ \.php$ {
+        include fastcgi_params;
+        fastcgi_pass 127.0.0.1:9000;
+        fastcgi_index index.php;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+    }
+
+    location ~ /\.ht {
+        deny all;
+    }
+}
+NGINXCONF
+    
+    cp /etc/nginx/sites-available/default /etc/nginx/sites-enabled/default
+    echo "Configuración nginx creada y aplicada"
+    nginx -t && nginx -s reload || true
 fi
 
 echo "Configuración completada. Laravel listo para servir."
