@@ -30,8 +30,4 @@ if [ -f /home/site/wwwroot/default ]; then
     echo "Configuración nginx copiada"
 fi
 
-echo "Configuración completada. Iniciando servidor..."
-
-# Start nginx and PHP-FPM
-service nginx start
-php-fpm
+echo "Configuración completada."
