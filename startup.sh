@@ -23,8 +23,10 @@ else
 fi
 
 # Copiar configuración de nginx si existe
-if [ -f /home/site/wwwroot/nginx.conf ]; then
-    cp /home/site/wwwroot/nginx.conf /etc/nginx/sites-available/default 2>/dev/null || true
+if [ -f /home/site/wwwroot/default ]; then
+    cp /home/site/wwwroot/default /etc/nginx/sites-available/default 2>/dev/null || true
+    cp /home/site/wwwroot/default /etc/nginx/sites-enabled/default 2>/dev/null || true
+    echo "Configuración nginx copiada"
 fi
 
 echo "Configuración completada. Iniciando servidor..."
