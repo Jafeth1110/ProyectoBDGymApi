@@ -102,8 +102,7 @@ return [
                 'url' => env('DB_URL'),
                 'host' => env('DB_HOST', 'localhost'),
                 'port' => env('DB_PORT', '1433'),
-                'database' => env('DB_DATABASE', 'dbgym'),
-                // Si DB_USERNAME/DB_PASSWORD están vacíos en .env, conviértelos a null para usar Autenticación de Windows (Integrated Security)
+                'database' => env('DB_DATABASE', 'dbgymazure'),
                 'username' => env('DB_USERNAME') ?: null,
                 'password' => env('DB_PASSWORD') ?: null,
                 'charset' => 'utf8',
