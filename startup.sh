@@ -25,18 +25,13 @@ fi
 
 # Copiar configuración de nginx si existe
 if [ -f /home/site/wwwroot/default ]; then
+    echo "Copiando configuración nginx personalizada..."
     cp /home/site/wwwroot/default /etc/nginx/sites-available/default 2>/dev/null || true
     cp /home/site/wwwroot/default /etc/nginx/sites-enabled/default 2>/dev/null || true
-    echo "Configuración nginx copiada"
+    
+    # Recargar nginx para aplicar cambios
+    nginx -t 2>/dev/null && nginx -s reload 2>/dev/null || true
+    echo "Configuración nginx aplicada"
 fi
 
-echo "Configuración completada."
-
-# Matar cualquier proceso nginx/php-fpm previo
-pkill nginx 2>/dev/null || true
-pkill php-fpm 2>/dev/null || true
-
-# Iniciar servidor embebido de PHP (como artisan serve)
-echo "Iniciando servidor PHP embebido en puerto 8080..."
-cd /home/site/wwwroot
-php -S 0.0.0.0:8080 -t /home/site/wwwroot index.php
+echo "Configuración completada. Laravel listo para servir."
