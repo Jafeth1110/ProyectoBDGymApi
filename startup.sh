@@ -31,3 +31,12 @@ if [ -f /home/site/wwwroot/default ]; then
 fi
 
 echo "Configuración completada."
+
+# Matar cualquier proceso nginx/php-fpm previo
+pkill nginx 2>/dev/null || true
+pkill php-fpm 2>/dev/null || true
+
+# Iniciar servidor embebido de PHP (como artisan serve)
+echo "Iniciando servidor PHP embebido en puerto 8080..."
+cd /home/site/wwwroot
+php -S 0.0.0.0:8080 -t /home/site/wwwroot index.php
