@@ -16,8 +16,9 @@ php artisan view:clear 2>/dev/null || true
 # Optimizar para producción (solo si .env existe)
 if [ -f /home/site/wwwroot/.env ]; then
     php artisan config:cache
-    php artisan route:cache
-    echo "Cachés optimizados"
+    # NO cachear rutas en Azure - causa problemas con 404
+    # php artisan route:cache
+    echo "Cachés optimizados (sin route cache)"
 else
     echo "WARNING: .env no encontrado. Configure las variables de entorno en Azure."
 fi
@@ -30,3 +31,7 @@ if [ -f /home/site/wwwroot/default ]; then
 fi
 
 echo "Configuración completada. Iniciando servidor..."
+
+# Start nginx and PHP-FPM
+service nginx start
+php-fpm
