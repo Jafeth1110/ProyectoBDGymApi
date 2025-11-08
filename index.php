@@ -7,9 +7,8 @@
  * @author   Taylor Otwell <taylor@laravel.com>
  */
 
-// Forward all requests to public/index.php
-$_SERVER['SCRIPT_NAME'] = '/public/index.php';
-$_SERVER['SCRIPT_FILENAME'] = __DIR__ . '/public/index.php';
+// Change current directory to public
 chdir(__DIR__ . '/public');
 
+// Forward to public/index.php
 require __DIR__ . '/public/index.php';
