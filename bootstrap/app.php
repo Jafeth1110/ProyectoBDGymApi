@@ -12,9 +12,9 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
-        // Habilitar CORS para todas las rutas API
+        // CORS middleware para todas las rutas API (debe ir primero)
         $middleware->api(prepend: [
-            \Illuminate\Http\Middleware\HandleCors::class,
+            \App\Http\Middleware\Cors::class,
         ]);
         
         //Middleware para todas las rutas de la API
