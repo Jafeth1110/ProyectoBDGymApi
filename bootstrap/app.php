@@ -12,10 +12,15 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
+        // Habilitar CORS para todas las rutas API
+        $middleware->api(prepend: [
+            \Illuminate\Http\Middleware\HandleCors::class,
+        ]);
+        
         //Middleware para todas las rutas de la API
         $middleware->alias([
-        'auth.jwt' => \App\Http\Middleware\ApiAuthMiddleware::class,
-    ]);
+            'auth.jwt' => \App\Http\Middleware\ApiAuthMiddleware::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //
